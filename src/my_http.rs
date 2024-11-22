@@ -1,9 +1,11 @@
 use std::io::Write;
 
+
 pub struct HTTPHeader {
 	pub name: String,
 	pub value: String,
 }
+
 
 pub struct URL {
 	scheme: String,
@@ -13,8 +15,8 @@ pub struct URL {
 }
 
 impl HTTPHeader {
-	fn new(name: String, value: String) -> HTTPHeader {
-		HTTPHeader {name, value}
+	pub fn new(name: String, value: String) -> HTTPHeader {
+		HTTPHeader { name, value }
 	}
 }
 
@@ -222,9 +224,16 @@ impl HTTPPartialRequest {
 	pub fn is_complete(&self) -> bool {
 		self.is_complete
 	}
+
+	pub fn get_complete_request(&self) -> Option<&HTTPRequest> {
+		if !self.is_complete {
+			return None;
+		}
+		Some(&self.parsed_request)
+	}
 }
 
-impl std::fmt::Display for HTTPRequest {
+impl std::fmt::Debug for HTTPRequest {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
 		writeln!(f, "HTTP request (version={})", self.http_version)?;
 		writeln!(f, "method={}", self.method)?;
@@ -235,11 +244,17 @@ impl std::fmt::Display for HTTPRequest {
 			writeln!(f, "-> [{}]: [{}]", h.name, h.value)?;
 		}
 		writeln!(f, "== body (length={}) ==", self.body.len())?;
-		writeln!(f, "{}", String::from_utf8_lossy(&self.body).to_string())?;
+		writeln!(f, "{:?}", String::from_utf8_lossy(self.body.as_slice()))?;
 		Ok(())
 	}
 }
-impl std::fmt::Display for HTTPPartialRequest {
+impl std::fmt::Display for HTTPRequest {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+		write!(f, "{}", String::from_utf8_lossy(self.to_bytes().as_slice()))
+	}
+}
+
+impl std::fmt::Debug for HTTPPartialRequest {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
 		writeln!(f, "HTTP partial request (complete={})",
 				 if self.is_complete { "true" } else { "false" })?;
@@ -247,13 +262,18 @@ impl std::fmt::Display for HTTPPartialRequest {
 		Ok(())
 	}
 }
+impl std::fmt::Display for HTTPPartialRequest {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+		writeln!(f, "{self:?}")
+	}
+}
 
 
 pub struct HTTPResponse {
-	http_version: String,
-	status: usize,
-	headers: Vec<HTTPHeader>,
-	body: Vec<u8>,
+	pub http_version: String,
+	pub status: usize,
+	pub headers: Vec<HTTPHeader>,
+	pub body: Vec<u8>,
 }
 
 impl HTTPResponse {
@@ -263,6 +283,16 @@ impl HTTPResponse {
 			status: 200,
 			headers: vec![],
 			body: Vec::<u8>::new(),
+		}
+	}
+
+	fn status_code_str(status_code: usize) -> &'static str {
+		match status_code {
+			200 => "OK",
+			404 => "NOT FOUND",
+			500 => "INTERNAL SERVER ERROR",
+			418 => "I'M A TEAPOT",
+			_ => ""
 		}
 	}
 	pub fn to_bytes(&self) -> Vec<u8> {
@@ -283,9 +313,10 @@ impl HTTPResponse {
 
 		let mut ret = Vec::<u8>::with_capacity(0x400);
 		write!(&mut ret,
-			   "{} {}\r\n{}\r\n",
+			   "{} {} {}\r\n{}\r\n",
 			   self.http_version,
 			   self.status.to_string(),
+			   Self::status_code_str(self.status),
 			   headers_joined
 		)
 			.expect("failed to write to ret vector");
@@ -296,10 +327,10 @@ impl HTTPResponse {
 	}
 }
 
-impl std::fmt::Display for HTTPResponse {
+impl std::fmt::Debug for HTTPResponse {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
 		writeln!(f, "HTTP response (version={})", self.http_version)?;
-		writeln!(f, "status={}", self.status)?;
+		writeln!(f, "status={} (\"{}\")", self.status, Self::status_code_str(self.status))?;
 		writeln!(f, "== headers ==")?;
 		for h in &self.headers {
 			writeln!(f, "-> [{}]: [{}]", h.name, h.value)?;
@@ -307,5 +338,11 @@ impl std::fmt::Display for HTTPResponse {
 		writeln!(f, "== body (length={}) ==", self.body.len())?;
 		writeln!(f, "{}", String::from_utf8_lossy(&self.body).to_string())?;
 		Ok(())
+	}
+}
+
+impl std::fmt::Display for HTTPResponse {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+		writeln!(f, "{}", String::from_utf8_lossy(self.to_bytes().as_slice()))
 	}
 }

@@ -17,18 +17,38 @@ fn example_compose_request() {
 		name: String::from("content-type"),
 		value: String::from("text/txt")
 	});
-	req.body = "Lorem ipsum dolor sit amet".as_bytes().to_vec();
+	req.body = "Lorem ipsum\ndolor sit amet".as_bytes().to_vec();
 
-	println!("== composed request ==");
-	println!("-> debug");
+	println!("\x1b[94m## composed response\x1b[0m");
+	println!("\x1b[92m### debug\x1b[0m");
 	println!("{req:?}");
-	println!("-> to_bytes/text");
-	println!("{}", req.to_bytes());
+	println!("\x1b[92m### display\x1b[0m");
+	println!("{req}");
+}
+
+fn example_compose_response() {
+	let mut res = HTTPResponse::default();
+	res.status = 200;
+	res.headers.push(HTTPHeader {
+		name: String::from("content-type"),
+		value: String::from("text/json")
+	});
+	res.body = r#"{"result": "works", "number": 42}"#.as_bytes().to_vec();
+
+	println!("\x1b[94m## composed response\x1b[0m");
+	println!("\x1b[92m### debug\x1b[0m");
+	println!("{res:?}");
+	println!("\x1b[92m### display\x1b[0m");
+	println!("{res}");
+
 }
 
 fn main() {
-	println!("=== examples ===");
+	println!("# examples");
+
 	example_compose_request();
+
+	example_compose_response();
 
 	println!();
 
@@ -68,7 +88,7 @@ fn handle_connection(mut stream: std::net::TcpStream) {
 
 		req.push_bytes(buffer[..n].as_ref());
 
-		if req.is_complete {
+		if req.is_complete() {
 			break;
 		}
 	}
@@ -79,7 +99,7 @@ fn handle_connection(mut stream: std::net::TcpStream) {
 	// stream.write_all("HTTP/1.1 200 OK\r\n\r\n".as_bytes()).expect("failed to write");
 	{
 		let mut resp = HTTPResponse::default();
-		let img_name = req.parsed_request.query;
+		let img_name = &req.get_complete_request().unwrap().query;
 		if img_name.find('\\').is_some() {
 			let r = HTTPResponse {
 				http_version: "HTTP/1.1".to_string(),
