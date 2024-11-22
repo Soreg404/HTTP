@@ -1,4 +1,4 @@
-use std::io::{Read, Write};
+use std::io::{BufRead, Read, Write};
 
 mod my_http;
 
@@ -14,6 +14,7 @@ pub struct Request {
 	query: String,
 	headers: Vec<String>,
 	body: String,
+	version: String,
 }
 
 impl Request {
@@ -28,6 +29,7 @@ impl Request {
 			method: String::new(),
 			path: String::new(),
 			query: String::new(),
+			version: String::new(),
 			headers: Vec::new(),
 			body: String::new(),
 		}
@@ -38,6 +40,75 @@ impl Request {
 		s.parse();
 		s
 	}
+
+	fn parse_request_first_line(&mut self) -> Result<(), &'static str> {
+		let line_str = String::from_utf8_lossy(
+			self.request_line_byte_buffer.as_slice())
+			.to_string();
+		let line_trim = line_str.trim();
+
+
+		let mut subpart = 0;
+		let mut whitespace_hold = false;
+		let mut buffer = Vec::<char>::with_capacity(0x400);
+		let mut it = line_trim.chars().peekable();
+		while let Some(c) = it.next() {
+			if c.is_whitespace() || it.peek() == None {
+				if it.peek() == None {
+					buffer.push(c);
+				}
+				if !whitespace_hold {
+					whitespace_hold = true;
+
+					match subpart {
+						0 => self.method = buffer.iter().collect(),
+						1 => {
+							let uri: String = buffer.iter().collect();
+							let mut uri_it = uri.split('?');
+							self.path = uri_it.next().unwrap().to_string();
+							self.query = match (uri_it.next()) {
+								Some(v) => String::from(v),
+								None => String::new(),
+							};
+						}
+
+						2 => self.version = buffer.iter().collect(),
+						_ => return Err("bad format")
+					}
+					buffer.clear();
+					subpart += 1;
+				}
+			} else {
+				whitespace_hold = false;
+				buffer.push(c);
+			}
+		}
+
+		Ok(())
+	}
+
+	fn parse_request_headers(&mut self) -> Result<(), &'static str> {
+		let mut header_buffer = Vec::<u8>::with_capacity(0x400);
+		let mut cr_hold = false;
+		for (i, c) in self.headers_byte_buffer.iter().enumerate() {
+			if *c == b'\r' {
+				continue;
+			}
+			if *c == b'\n' {
+				if !cr_hold {
+					cr_hold = true;
+					self.headers.push(
+						String::from_utf8_lossy(header_buffer.as_slice()).to_string());
+					header_buffer.clear();
+				}
+			} else {
+				header_buffer.push(*c);
+				cr_hold = false;
+			}
+		}
+		Ok(())
+	}
+
 	pub fn push_bytes(&mut self, buffer: &[u8]) {
 		for c in buffer {
 			match self.part_counter {
@@ -49,10 +120,17 @@ impl Request {
 
 			if *c == b'\n' {
 				match self.part_counter {
-					0 => self.part_counter = 1,
+					0 => {
+						println!("push_bytes, \\n - parse first line");
+						self.parse_request_first_line()
+							.expect("bad first line");
+						self.part_counter = 1;
+						self.is_new_line = true;
+					}
 					1 => {
 						if self.is_new_line {
-							self.part_counter = 2
+							self.part_counter = 2;
+							self.parse_request_headers().expect("bad headers");
 						} else {
 							self.is_new_line = true;
 						}
@@ -69,11 +147,21 @@ impl Request {
 		if self.part_counter != 2 {
 			return Err("incomplete request.");
 		}
-		println!("req:\n1st line: {}\n== headers ==\n{}\n== body ==\n{}",
-				 String::from_utf8_lossy(self.request_line_byte_buffer.as_slice()),
-				 String::from_utf8_lossy(self.headers_byte_buffer.as_slice()),
-				 String::from_utf8_lossy(self.body_byte_buffer.as_slice())
-		);
+
+		println!("request");
+		println!("method={}", self.method);
+		println!("path={}", self.path);
+		println!("query={}", self.query);
+		println!("version={}", self.version);
+
+		println!("== headers ({}) ==", self.headers.len());
+		for h in self.headers.iter() {
+			println!("-> {}", h);
+		}
+
+		println!("== body ==");
+		println!("{}", self.body);
+
 		Ok(())
 	}
 }
@@ -104,7 +192,14 @@ fn handle_connection(mut stream: std::net::TcpStream) {
 
 	let mut buffer = [0; 0x400];
 	loop {
+		println!("reading...");
 		let n = stream.read(&mut buffer).expect("failed to read");
+		println!("read {} bytes", n);
+
+		if n == 0 {
+			println!("connection closed");
+			break;
+		}
 
 		req.push_bytes(buffer[..n].as_ref());
 
