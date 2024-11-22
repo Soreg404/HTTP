@@ -1,3 +1,4 @@
+use std::fmt::format;
 use std::io::{BufRead, Read, Write};
 use std::net::Shutdown;
 
@@ -8,39 +9,93 @@ pub struct HTTPHeader {
 	value: String,
 }
 
-pub struct Request {
-	pub part_counter: u8,
+impl HTTPHeader {
+	fn new(name: String, value: String) -> HTTPHeader {
+		HTTPHeader {name, value}
+	}
+}
+
+pub struct HTTPRequest {
+	pub method: String,
+	pub path: String,
+	pub query: String,
+	pub http_version: String,
+	pub headers: Vec<HTTPHeader>,
+	pub body: Vec<u8>,
+}
+
+impl HTTPRequest {
+	pub fn default() -> Self {
+		Self {
+			method: String::from("GET"),
+			path: String::from("/"),
+			query: String::new(),
+			http_version: String::from("HTTP/1.1"),
+			headers: vec![],
+			body: Vec::<u8>::new(),
+		}
+	}
+	pub fn to_bytes(&self) -> Vec<u8> {
+		let mut uri = self.path.clone();
+		if !self.query.is_empty() {
+			uri.push('?');
+			uri.push_str(&self.query);
+		}
+
+		let mut found_content_length_header = false;
+		let mut headers_joined = String::with_capacity(self.headers.capacity() + self.headers.len() * 4);
+		for h in &self.headers {
+			if h.name.to_lowercase() == "content-length" {
+				found_content_length_header = true;
+			}
+			headers_joined.push_str(&h.name);
+			headers_joined.push_str(": ");
+			headers_joined.push_str(&h.value);
+			headers_joined.push_str("\r\n");
+		}
+		if !self.body.is_empty() && !found_content_length_header {
+			headers_joined.push_str(format!("content-length: {}\r\n", self.body.len()).as_str());
+		}
+
+		let mut ret = Vec::<u8>::with_capacity(0x400);
+		write!(&mut ret,
+			   "{} {} {}\r\n{}\r\n",
+			   self.method,
+			   uri,
+			   self.http_version,
+			   headers_joined
+		)
+			.expect("failed to write to ret vector");
+		ret.write(&mut self.body.as_slice())
+			.expect("failed to write to ret vector");
+
+		ret
+	}
+}
+
+pub struct HTTPPartialRequest {
+	part_counter: u8,
 	is_complete: bool,
 	internal_buffer: Vec<u8>,
 
 	new_line_hold: bool,
 
-	method: String,
-	path: String,
-	query: String,
-	http_version: String,
-	headers: Vec<HTTPHeader>,
-	body: String,
 	content_length: usize,
+
+	parsed_request: HTTPRequest,
 }
 
-impl Request {
+impl HTTPPartialRequest {
 	pub fn new() -> Self {
-		Request {
+		HTTPPartialRequest {
 			part_counter: 0,
 			is_complete: false,
 			internal_buffer: Vec::with_capacity(0x400),
 
 			new_line_hold: false,
-
-			method: String::new(),
-			path: String::new(),
-			query: String::new(),
-			http_version: String::new(),
-			headers: Vec::new(),
-
 			content_length: 0,
-			body: String::new(),
+
+			parsed_request: HTTPRequest::default(),
 		}
 	}
 	pub fn from_str(text: &str) -> Self {
@@ -69,18 +124,18 @@ impl Request {
 					whitespace_hold = true;
 
 					match subpart {
-						0 => self.method = buffer.iter().collect(),
+						0 => self.parsed_request.method = buffer.iter().collect(),
 						1 => {
 							let uri: String = buffer.iter().collect();
 							let mut uri_it = uri.split('?');
-							self.path = uri_it.next().unwrap().to_string();
-							self.query = match (uri_it.next()) {
+							self.parsed_request.path = uri_it.next().unwrap().to_string();
+							self.parsed_request.query = match (uri_it.next()) {
 								Some(v) => String::from(v),
 								None => String::new(),
 							};
 						}
 
-						2 => self.http_version = buffer.iter().collect(),
+						2 => self.parsed_request.http_version = buffer.iter().collect(),
 						_ => return Err("bad format")
 					}
 					buffer.clear();
@@ -135,7 +190,7 @@ impl Request {
 								};
 							}
 
-							self.headers.push(HTTPHeader {
+							self.parsed_request.headers.push(HTTPHeader {
 								name: header_name,
 								value: header_val,
 							});
@@ -154,19 +209,21 @@ impl Request {
 			if self.part_counter == 2
 				&& !self.is_complete
 				&& self.internal_buffer.len() >= self.content_length {
-				self.body = String::from_utf8_lossy(self.internal_buffer.as_slice()).to_string();
+				self.parsed_request.body.clone_from(&self.internal_buffer);
 				self.internal_buffer.clear();
 				self.is_complete = true;
 			}
 		}
 	}
+
+	pub fn is_complete(&self) -> bool {
+		self.is_complete
+	}
 }
 
-impl std::fmt::Display for Request {
+impl std::fmt::Display for HTTPRequest {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-		writeln!(f, "HTTP request (version={}) /{}",
-				 self.http_version,
-				 if self.is_complete { "complete" } else { "incomplete" })?;
+		writeln!(f, "HTTP request (version={})", self.http_version)?;
 		writeln!(f, "method={}", self.method)?;
 		writeln!(f, "path={}", self.path)?;
 		writeln!(f, "query=\"{}\"", self.query)?;
@@ -174,13 +231,99 @@ impl std::fmt::Display for Request {
 		for h in &self.headers {
 			writeln!(f, "-> [{}]: [{}]", h.name, h.value)?;
 		}
-		writeln!(f, "== body (length={}) ==", self.content_length)?;
-		writeln!(f, "{}", self.body)?;
+		writeln!(f, "== body (length={}) ==", self.body.len())?;
+		writeln!(f, "{}", String::from_utf8_lossy(&self.body).to_string())?;
+		Ok(())
+	}
+}
+impl std::fmt::Display for HTTPPartialRequest {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+		writeln!(f, "HTTP partial request (complete={})",
+				 if self.is_complete { "true" } else { "false" })?;
+		writeln!(f, "{}", self.parsed_request)?;
 		Ok(())
 	}
 }
 
+
+pub struct HTTPResponse {
+	http_version: String,
+	status: usize,
+	headers: Vec<HTTPHeader>,
+	body: Vec<u8>,
+}
+
+impl HTTPResponse {
+	pub fn default() -> Self {
+		Self {
+			http_version: String::from("HTTP/1.1"),
+			status: 200,
+			headers: vec![],
+			body: Vec::<u8>::new(),
+		}
+	}
+	pub fn to_bytes(&self) -> Vec<u8> {
+		let mut found_content_length_header = false;
+		let mut headers_joined = String::with_capacity(self.headers.capacity() + self.headers.len() * 4);
+		for h in &self.headers {
+			if h.name.to_lowercase() == "content-length" {
+				found_content_length_header = true;
+			}
+			headers_joined.push_str(&h.name);
+			headers_joined.push_str(": ");
+			headers_joined.push_str(&h.value);
+			headers_joined.push_str("\r\n");
+		}
+		if !self.body.is_empty() && !found_content_length_header {
+			headers_joined.push_str(format!("content-length: {}\r\n", self.body.len()).as_str());
+		}
+
+		let mut ret = Vec::<u8>::with_capacity(0x400);
+		write!(&mut ret,
+			   "{} {}\r\n{}\r\n",
+			   self.http_version,
+			   self.status.to_string(),
+			   headers_joined
+		)
+			.expect("failed to write to ret vector");
+		ret.write(&mut self.body.as_slice())
+			.expect("failed to write to ret vector");
+
+		ret
+	}
+}
+
+impl std::fmt::Display for HTTPResponse {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+		writeln!(f, "HTTP response (version={})", self.http_version)?;
+		writeln!(f, "status={}", self.status)?;
+		writeln!(f, "== headers ==")?;
+		for h in &self.headers {
+			writeln!(f, "-> [{}]: [{}]", h.name, h.value)?;
+		}
+		writeln!(f, "== body (length={}) ==", self.body.len())?;
+		writeln!(f, "{}", String::from_utf8_lossy(&self.body).to_string())?;
+		Ok(())
+	}
+}
+
+
 fn main() {
+	// let mut req = HTTPRequest::default();
+	// req.method = String::from("POST");
+	// req.path = String::from("/api/get-list");
+	// req.query = String::from("hello=world");
+	// req.headers.push(HTTPHeader {
+	// 	name: String::from("host"),
+	// 	value: String::from("localhost")
+	// });
+	// req.headers.push(HTTPHeader {
+	// 	name: String::from("content-type"),
+	// 	value: String::from("text/txt")
+	// });
+	// req.body = String::from("Lorem ipsum dolor sit amet");
+	// println!("request to string\n{}", req.to_string());
+
 	println!("starting server...");
 	let mut listener = std::net::TcpListener::bind("127.0.0.1:8500").unwrap();
 
@@ -202,7 +345,7 @@ fn main() {
 }
 
 fn handle_connection(mut stream: std::net::TcpStream) {
-	let mut req = Request::new();
+	let mut req = HTTPPartialRequest::new();
 
 	let mut buffer = [0; 0x400];
 	loop {
@@ -225,7 +368,26 @@ fn handle_connection(mut stream: std::net::TcpStream) {
 	println!("{}", req);
 
 	println!("responding...");
-	stream.write_all("HTTP/1.1 200 OK\r\n\r\n".as_bytes()).expect("failed to write");
+	// stream.write_all("HTTP/1.1 200 OK\r\n\r\n".as_bytes()).expect("failed to write");
+	{
+		let mut resp = HTTPResponse::default();
+		let img_name = req.parsed_request.query;
+		if img_name.find('\\').is_some() {
+			let r = HTTPResponse {
+				http_version: "HTTP/1.1".to_string(),
+				status: 400,
+				headers: vec![
+					HTTPHeader::new("content-type".to_string(), "text/txt".to_string())
+				],
+				body: "incorrect input".as_bytes().to_vec(),
+			};
+			stream.write(&r.to_bytes()).unwrap();
+		} else {
+			let path = format!("C:\\!\\Temp\\hm\\{}", img_name);
+			resp.body = std::fs::read(path).unwrap_or_else(|e| e.to_string().into_bytes());
+			stream.write(&resp.to_bytes()).expect("failed to write");
+		}
+	}
 	stream.flush().expect("failed to flush");
 
 	println!("closing connection...");
