@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Display};
 use std::io::Write;
 
 
@@ -28,9 +29,8 @@ pub struct HTTPRequest {
 	pub headers: Vec<HTTPHeader>,
 	pub body: Vec<u8>,
 }
-
-impl HTTPRequest {
-	pub fn default() -> Self {
+impl Default for HTTPRequest {
+	fn default() -> Self {
 		Self {
 			method: String::from("GET"),
 			path: String::from("/"),
@@ -40,6 +40,8 @@ impl HTTPRequest {
 			body: Vec::<u8>::new(),
 		}
 	}
+}
+impl HTTPRequest {
 	pub fn to_bytes(&self) -> Vec<u8> {
 		let mut uri = self.path.clone();
 		if !self.query.is_empty() {
@@ -89,9 +91,8 @@ pub struct HTTPPartialRequest {
 
 	parsed_request: HTTPRequest,
 }
-
-impl HTTPPartialRequest {
-	pub fn new() -> Self {
+impl Default for HTTPPartialRequest {
+	fn default() -> Self {
 		HTTPPartialRequest {
 			part_counter: 0,
 			is_complete: false,
@@ -103,8 +104,13 @@ impl HTTPPartialRequest {
 			parsed_request: HTTPRequest::default(),
 		}
 	}
+}
+impl HTTPPartialRequest {
+	pub fn new() -> Self {
+		Self::default()
+	}
 	pub fn from_str(text: &str) -> Self {
-		let mut s = Self::new();
+		let mut s = Self::default();
 		s.push_bytes(text.as_bytes());
 		s
 	}
@@ -233,7 +239,7 @@ impl HTTPPartialRequest {
 	}
 }
 
-impl std::fmt::Debug for HTTPRequest {
+impl Debug for HTTPRequest {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
 		writeln!(f, "HTTP request (version={})", self.http_version)?;
 		writeln!(f, "method={}", self.method)?;
@@ -248,13 +254,13 @@ impl std::fmt::Debug for HTTPRequest {
 		Ok(())
 	}
 }
-impl std::fmt::Display for HTTPRequest {
+impl Display for HTTPRequest {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
 		write!(f, "{}", String::from_utf8_lossy(self.to_bytes().as_slice()))
 	}
 }
 
-impl std::fmt::Debug for HTTPPartialRequest {
+impl Debug for HTTPPartialRequest {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
 		writeln!(f, "HTTP partial request (complete={})",
 				 if self.is_complete { "true" } else { "false" })?;
@@ -262,7 +268,7 @@ impl std::fmt::Debug for HTTPPartialRequest {
 		Ok(())
 	}
 }
-impl std::fmt::Display for HTTPPartialRequest {
+impl Display for HTTPPartialRequest {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
 		writeln!(f, "{self:?}")
 	}
@@ -276,8 +282,8 @@ pub struct HTTPResponse {
 	pub body: Vec<u8>,
 }
 
-impl HTTPResponse {
-	pub fn default() -> Self {
+impl Default for HTTPResponse {
+	fn default() -> Self {
 		Self {
 			http_version: String::from("HTTP/1.1"),
 			status: 200,
@@ -285,7 +291,10 @@ impl HTTPResponse {
 			body: Vec::<u8>::new(),
 		}
 	}
+}
 
+
+impl HTTPResponse {
 	fn status_code_str(status_code: usize) -> &'static str {
 		match status_code {
 			200 => "OK",
@@ -327,7 +336,7 @@ impl HTTPResponse {
 	}
 }
 
-impl std::fmt::Debug for HTTPResponse {
+impl Debug for HTTPResponse {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
 		writeln!(f, "HTTP response (version={})", self.http_version)?;
 		writeln!(f, "status={} (\"{}\")", self.status, Self::status_code_str(self.status))?;
@@ -341,7 +350,7 @@ impl std::fmt::Debug for HTTPResponse {
 	}
 }
 
-impl std::fmt::Display for HTTPResponse {
+impl Display for HTTPResponse {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
 		writeln!(f, "{}", String::from_utf8_lossy(self.to_bytes().as_slice()))
 	}

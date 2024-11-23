@@ -19,7 +19,7 @@ fn example_compose_request() {
 	});
 	req.body = "Lorem ipsum\ndolor sit amet".as_bytes().to_vec();
 
-	println!("\x1b[94m## composed response\x1b[0m");
+	println!("\x1b[94m## composed request\x1b[0m");
 	println!("\x1b[92m### debug\x1b[0m");
 	println!("{req:?}");
 	println!("\x1b[92m### display\x1b[0m");
@@ -43,12 +43,23 @@ fn example_compose_response() {
 
 }
 
+fn example_quick_response() {
+	println!("\x1b[94m## quick response\x1b[0m");
+	let resp = HTTPResponse {
+		status: 418,
+		..HTTPResponse::default()
+	};
+	println!("{resp}");
+}
+
 fn main() {
 	println!("# examples");
 
 	example_compose_request();
 
 	example_compose_response();
+
+	example_quick_response();
 
 	println!();
 
@@ -73,7 +84,7 @@ fn main() {
 }
 
 fn handle_connection(mut stream: std::net::TcpStream) {
-	let mut req = HTTPPartialRequest::new();
+	let mut req = HTTPPartialRequest::default();
 
 	let mut buffer = [0; 0x400];
 	loop {
