@@ -14,7 +14,7 @@ pub struct HTTPHeader {
 }
 impl HTTPHeader {
 	pub fn new(name: impl Into<String>, value: impl Into<String>) -> HTTPHeader {
-		HTTPHeader { name, value }
+		HTTPHeader { name: name.into(),  value: value.into() }
 	}
 }
 
@@ -128,7 +128,7 @@ impl HTTPPartialRequest {
 	}
 	pub fn from_str(text: impl AsRef<str>) -> Self {
 		let mut s = Self::default();
-		s.push_bytes(text.as_bytes());
+		s.push_bytes(text.as_ref().as_bytes());
 		s
 	}
 
