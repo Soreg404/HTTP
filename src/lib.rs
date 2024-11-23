@@ -287,6 +287,12 @@ impl Default for HTTPResponse {
 	}
 }
 impl HTTPResponse {
+	pub fn new_short(status_code: usize) -> Self {
+		Self {
+			status: status_code,
+			..Default::default()
+		}
+	}
 	fn status_code_str(status_code: usize) -> &'static str {
 		match status_code {
 			200 => "OK",
