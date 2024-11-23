@@ -107,18 +107,17 @@ fn handle_connection(mut stream: std::net::TcpStream) {
 	println!("{}", req);
 
 	println!("responding...");
-	// stream.write_all("HTTP/1.1 200 OK\r\n\r\n".as_bytes()).expect("failed to write");
 	{
 		let mut resp = HTTPResponse::default();
 		let img_name = &req.get_complete_request().unwrap().query;
 		if img_name.find('\\').is_some() {
 			let r = HTTPResponse {
-				http_version: "HTTP/1.1".to_string(),
 				status: 400,
 				headers: vec![
-					HTTPHeader::new("content-type".to_string(), "text/txt".to_string())
+					HTTPHeader::new("content-type".to_string(), "text/plain".to_string())
 				],
 				body: "incorrect input".as_bytes().to_vec(),
+				..HTTPResponse::default()
 			};
 			stream.write(&r.to_bytes()).unwrap();
 		} else {
