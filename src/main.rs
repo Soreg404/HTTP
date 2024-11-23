@@ -1,8 +1,8 @@
 use std::io::{BufRead, Read, Write};
 use std::net::Shutdown;
 
-mod my_http;
-use my_http::*;
+mod lib;
+use lib::*;
 
 fn example_compose_request() {
 	let mut req = HTTPRequest::default();
