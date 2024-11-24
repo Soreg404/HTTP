@@ -211,7 +211,7 @@ impl HTTPPartialRequest {
 								Some(v) => String::from(v).trim().to_string(),
 								None => String::new(),
 							};
-							if header_name == "content-length" {
+							if header_name.to_lowercase() == "content-length" {
 								self.content_length = match header_val.parse::<usize>() {
 									Ok(v) => v,
 									_ => 0
@@ -259,15 +259,15 @@ impl Debug for HTTPPartialRequest {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
 		writeln!(f, "HTTP partial request (complete={})",
 				 if self.is_complete { "true" } else { "false" })?;
-		writeln!(f, "{}", self.parsed_request)?;
+		writeln!(f, "{:?}", self.parsed_request)?;
 		Ok(())
 	}
 }
-impl Display for HTTPPartialRequest {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-		writeln!(f, "{self:?}")
-	}
-}
+// impl Display for HTTPPartialRequest {
+// 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+// 		writeln!(f, "{self:?}")
+// 	}
+// }
 
 
 pub struct HTTPResponse {

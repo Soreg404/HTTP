@@ -52,6 +52,23 @@ fn example_quick_response() {
 	println!("{resp}");
 }
 
+fn example_read_request() {
+	let mut p_req = HTTPPartialRequest::default();
+
+	p_req.push_bytes(b"POST /fi");
+	p_req.push_bytes(b"nd HTTP/1.1\r");
+	p_req.push_bytes(b"\nhost: local");
+	p_req.push_bytes(b"host\r\n");
+	p_req.push_bytes(b"content-length: 5\r\n\r\n");
+	p_req.push_bytes(b"Hello");
+	p_req.push_bytes(b"this won't be saved to request body (bsc content-length)");
+
+	println!("\x1b[94m## partial request (is_complete={})\x1b[0m", p_req.is_complete());
+	println!("\x1b[92m### debug\x1b[0m");
+	println!("{p_req:?}");
+
+}
+
 fn main() {
 	println!("# examples");
 
@@ -60,6 +77,8 @@ fn main() {
 	example_compose_response();
 
 	example_quick_response();
+
+	example_read_request();
 
 	println!();
 
@@ -104,7 +123,7 @@ fn handle_connection(mut stream: std::net::TcpStream) {
 		}
 	}
 
-	println!("{}", req);
+	println!("{:?}", req);
 
 	println!("responding...");
 	{
