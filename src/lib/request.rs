@@ -1,0 +1,82 @@
+use std::fmt::{Debug, Display};
+use std::io::Write;
+use crate::lib::HTTPHeader;
+
+pub struct HTTPRequest {
+	pub method: String,
+	pub path: String,
+	pub query: String,
+	pub http_version: String,
+	pub headers: Vec<HTTPHeader>,
+	pub body: Vec<u8>,
+}
+impl Default for HTTPRequest {
+	fn default() -> Self {
+		Self {
+			method: String::from("GET"),
+			path: String::from("/"),
+			query: String::new(),
+			http_version: String::from("HTTP/1.1"),
+			headers: vec![],
+			body: Vec::<u8>::new(),
+		}
+	}
+}
+impl HTTPRequest {
+	pub fn to_bytes(&self) -> Vec<u8> {
+		let mut uri = self.path.clone();
+		if !self.query.is_empty() {
+			uri.push('?');
+			uri.push_str(&self.query);
+		}
+
+		let mut found_content_length_header = false;
+		let mut headers_joined = String::with_capacity(self.headers.capacity() + self.headers.len() * 4);
+		for h in &self.headers {
+			if h.name.to_lowercase() == "content-length" {
+				found_content_length_header = true;
+			}
+			headers_joined.push_str(&h.name);
+			headers_joined.push_str(": ");
+			headers_joined.push_str(&h.value);
+			headers_joined.push_str("\r\n");
+		}
+		if !self.body.is_empty() && !found_content_length_header {
+			headers_joined.push_str(format!("content-length: {}\r\n", self.body.len()).as_str());
+		}
+
+		let mut ret = Vec::<u8>::with_capacity(0x400);
+		write!(&mut ret,
+			   "{} {} {}\r\n{}\r\n",
+			   self.method,
+			   uri,
+			   self.http_version,
+			   headers_joined
+		)
+			.expect("failed to write to ret vector");
+		ret.write(&mut self.body.as_slice())
+			.expect("failed to write to ret vector");
+
+		ret
+	}
+}
+impl Debug for HTTPRequest {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+		writeln!(f, "HTTP request (version={})", self.http_version)?;
+		writeln!(f, "method={}", self.method)?;
+		writeln!(f, "path={}", self.path)?;
+		writeln!(f, "query=\"{}\"", self.query)?;
+		writeln!(f, "== headers ==")?;
+		for h in &self.headers {
+			writeln!(f, "-> [{}]: [{}]", h.name, h.value)?;
+		}
+		writeln!(f, "== body (length={}) ==", self.body.len())?;
+		writeln!(f, "{:?}", String::from_utf8_lossy(self.body.as_slice()))?;
+		Ok(())
+	}
+}
+impl Display for HTTPRequest {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+		write!(f, "{}", String::from_utf8_lossy(self.to_bytes().as_slice()))
+	}
+}
