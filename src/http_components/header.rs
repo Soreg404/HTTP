@@ -4,6 +4,6 @@ pub struct HTTPHeader {
 }
 impl HTTPHeader {
 	pub fn new(name: impl Into<String>, value: impl Into<String>) -> HTTPHeader {
-		HTTPHeader { name: name.into(),  value: value.into() }
+		HTTPHeader { name: name.into(), value: value.into() }
 	}
 }

@@ -1,10 +1,9 @@
 use std::io::{BufRead, Read, Write};
 use std::net::Shutdown;
 
-mod lib;
 mod tests;
 
-use lib::*;
+use http::*;
 
 fn example_compose_request() {
 	let mut req = HTTPRequest::default();
@@ -94,7 +93,7 @@ fn main() {
 				println!("accepted a new connection");
 				handle_connection(stream);
 			}
-			Err(e) => {
+			Err(_) => {
 				println!("connection error");
 				break;
 			}

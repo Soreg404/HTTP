@@ -1,5 +1,5 @@
 use std::fmt::Debug;
-use crate::lib::{HTTPHeader, HTTPRequest};
+use crate::{HTTPHeader, HTTPRequest};
 
 pub struct HTTPPartialRequest {
 	part_counter: u8,

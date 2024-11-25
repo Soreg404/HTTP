@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display};
 use std::io::Write;
-use crate::lib::HTTPHeader;
+use crate::HTTPHeader;
 
 pub struct HTTPResponse {
 	pub http_version: String,
