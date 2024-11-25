@@ -2,6 +2,8 @@ use std::io::{BufRead, Read, Write};
 use std::net::Shutdown;
 
 mod lib;
+mod tests;
+
 use lib::*;
 
 fn example_compose_request() {
