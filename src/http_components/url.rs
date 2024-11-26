@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 #[derive(Default)]
 pub struct Url {
 	scheme: String,
@@ -146,4 +148,18 @@ fn url_escape_test() {
 	assert_eq!(Url::escape("pass-through"), "pass-through");
 	assert_eq!(Url::escape("space space"), "space+space");
 	assert_eq!(Url::escape("special chars: /=+"), "special+chars%3A+%2F%3D%2B");
+}
+
+
+impl Url {
+	pub fn parse_query(query: &str) -> HashMap<String, String> {
+		let mut ret = HashMap::<String, String>::new();
+		let fields = query.split('&');
+		for field in fields {
+			let (key, val) = field.split_at(field.find('=')
+				.expect("*temp* equal sign not found"));
+			ret.insert(key.to_string(), val.to_string());
+		}
+		ret
+	}
 }
