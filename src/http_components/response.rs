@@ -25,6 +25,13 @@ impl HTTPResponse {
 			..Default::default()
 		}
 	}
+	pub fn new_json(json_string: &str) -> Self {
+		HTTPResponse {
+			headers: vec![HTTPHeader::new("Content-Type", "application/json")],
+			body: json_string.as_bytes().to_vec(),
+			..Default::default()
+		}
+	}
 	fn status_code_str(status_code: usize) -> &'static str {
 		match status_code {
 			200 => "OK",
