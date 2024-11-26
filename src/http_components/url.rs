@@ -158,8 +158,16 @@ impl Url {
 		for field in fields {
 			let (key, val) = field.split_at(field.find('=')
 				.expect("*temp* equal sign not found"));
-			ret.insert(key.to_string(), val.to_string());
+			ret.insert(key.to_string(), val[1..].to_string());
 		}
 		ret
 	}
+}
+
+#[test]
+fn url_parse_query_test() {
+	let eq = HashMap::<String, String>::from([
+		("key".to_string(), "value".to_string())
+	]);
+	assert_eq!(Url::parse_query("key=value"), eq);
 }
