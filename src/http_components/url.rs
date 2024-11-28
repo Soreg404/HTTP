@@ -4,8 +4,8 @@ use std::collections::HashMap;
 pub struct Url {
 	scheme: String,
 	host: String,
-	path: String,
-	query: String,
+	path: Vec<String>,
+	query: Vec<(String, String)>,
 	fragment: String,
 }
 
@@ -152,7 +152,7 @@ fn url_escape_test() {
 
 
 impl Url {
-	pub fn parse_query(query: &str) -> HashMap<String, String> {
+	pub fn parse_query_args(query: &str) -> HashMap<String, String> {
 		let mut ret = HashMap::<String, String>::new();
 		let fields = query.split('&');
 		for field in fields {
@@ -165,9 +165,22 @@ impl Url {
 }
 
 #[test]
-fn url_parse_query_test() {
+fn url_parse_query_args_test() {
 	let eq = HashMap::<String, String>::from([
 		("key".to_string(), "value".to_string())
 	]);
-	assert_eq!(Url::parse_query("key=value"), eq);
+	assert_eq!(Url::parse_query_args("key=value"), eq);
+}
+
+
+impl Url {
+	pub fn from_absolute(line: &str) -> Url {
+		// scheme://host/path
+		panic!("not implemented");
+	}
+	pub fn from_relative(line: &str) -> Url {
+		// path || /path
+		// default host & scheme
+		panic!("not implemented");
+	}
 }
