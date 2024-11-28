@@ -12,11 +12,11 @@ fn example_compose_request() {
 	req.query = String::from("hello=world");
 	req.headers.push(HTTPHeader {
 		name: String::from("host"),
-		value: String::from("localhost")
+		value: String::from("localhost"),
 	});
 	req.headers.push(HTTPHeader {
 		name: String::from("content-type"),
-		value: String::from("text/txt")
+		value: String::from("text/txt"),
 	});
 	req.body = "Lorem ipsum\ndolor sit amet".as_bytes().to_vec();
 
@@ -32,7 +32,7 @@ fn example_compose_response() {
 	res.status = 200;
 	res.headers.push(HTTPHeader {
 		name: String::from("content-type"),
-		value: String::from("text/json")
+		value: String::from("text/json"),
 	});
 	res.body = r#"{"result": "works", "number": 42}"#.as_bytes().to_vec();
 
@@ -41,7 +41,6 @@ fn example_compose_response() {
 	println!("{res:?}");
 	println!("\x1b[92m### display\x1b[0m");
 	println!("{res}");
-
 }
 
 fn example_quick_response() {
@@ -67,7 +66,6 @@ fn example_read_request() {
 	println!("\x1b[94m## partial request (is_complete={})\x1b[0m", p_req.is_complete());
 	println!("\x1b[92m### debug\x1b[0m");
 	println!("{p_req:?}");
-
 }
 
 fn main() {
@@ -86,12 +84,19 @@ fn main() {
 	println!("starting server...");
 	let mut listener = std::net::TcpListener::bind("127.0.0.1:8500").unwrap();
 
+	let mut ses_logfile = std::fs::OpenOptions::new()
+		.create(true)
+		.write(true)
+		.truncate(true)
+		.open("tmp-session.bin")
+		.unwrap();
+
 	println!("server listening on port 8500.");
 	for stream in listener.incoming() {
 		match stream {
 			Ok(stream) => {
 				println!("accepted a new connection");
-				handle_connection(stream);
+				handle_connection(stream, &mut ses_logfile);
 			}
 			Err(_) => {
 				println!("connection error");
@@ -103,8 +108,12 @@ fn main() {
 	println!("bye");
 }
 
-fn handle_connection(mut stream: std::net::TcpStream) {
+fn handle_connection(
+	mut stream: std::net::TcpStream,
+	ses_logfile: &mut std::fs::File,
+) {
 	let mut req = HTTPPartialRequest::default();
+	ses_logfile.write(b"new connection \n<<<<<<").unwrap_or_default();
 
 	let mut buffer = [0; 0x400];
 	loop {
@@ -117,6 +126,8 @@ fn handle_connection(mut stream: std::net::TcpStream) {
 			break;
 		}
 
+		ses_logfile.write(&buffer[0..n]).unwrap_or_default();
+
 		req.push_bytes(buffer[..n].as_ref());
 
 		if req.is_complete() {
@@ -125,27 +136,40 @@ fn handle_connection(mut stream: std::net::TcpStream) {
 	}
 
 	println!("{:?}", req);
+	ses_logfile.flush().unwrap();
+	ses_logfile.write(b">>>>>>\n\n").unwrap();
+
+	if !req.is_complete() {
+		println!("incomplete request, bail");
+		return;
+	}
 
 	println!("responding...");
-	{
-		let mut resp = HTTPResponse::default();
-		let img_name = &req.get_complete_request().unwrap().query;
-		if img_name.find('\\').is_some() {
-			let r = HTTPResponse {
-				status: 400,
-				headers: vec![
-					HTTPHeader::new("content-type".to_string(), "text/plain".to_string())
-				],
-				body: "incorrect input".as_bytes().to_vec(),
+
+	let req = req.get_complete_request().unwrap();
+	let response = match req.path.as_str() {
+		"/file-form" => {
+			let html = std::fs::read_to_string("html/file-form.html").unwrap();
+			HTTPResponse {
+				body: html.as_bytes().to_vec(),
 				..HTTPResponse::default()
-			};
-			stream.write(&r.to_bytes()).unwrap();
-		} else {
-			let path = format!("C:\\!\\Temp\\hm\\{}", img_name);
-			resp.body = std::fs::read(path).unwrap_or_else(|e| e.to_string().into_bytes());
-			stream.write(&resp.to_bytes()).expect("failed to write");
+			}
 		}
+		"/file-form-result" => {
+			HTTPResponse::new_short(200)
+		}
+		_ => HTTPResponse::new_short(404)
+	};
+
+	if response.body.len() < 60 {
+		println!("response: {:?}", &response);
 	}
+
+	let result = stream.write(response.to_bytes().as_slice());
+	if result.is_err() {
+		println!("write error");
+	}
+
 	stream.flush().expect("failed to flush");
 
 	println!("closing connection...");
