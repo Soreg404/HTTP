@@ -2,6 +2,11 @@ use std::fmt::{Debug, Display};
 use std::io::Write;
 use crate::HTTPHeader;
 
+pub struct HTTPRequestAttachment {
+	pub headers: HTTPHeader,
+	pub body: Vec<u8>
+}
+
 pub struct HTTPRequest {
 	pub method: String,
 	pub path: String,
@@ -9,6 +14,7 @@ pub struct HTTPRequest {
 	pub http_version: String,
 	pub headers: Vec<HTTPHeader>,
 	pub body: Vec<u8>,
+	pub attachments: Vec<HTTPRequestAttachment>
 }
 impl Default for HTTPRequest {
 	fn default() -> Self {
@@ -19,6 +25,7 @@ impl Default for HTTPRequest {
 			http_version: String::from("HTTP/1.1"),
 			headers: vec![],
 			body: Vec::<u8>::new(),
+			attachments: Vec::<HTTPRequestAttachment>::new()
 		}
 	}
 }

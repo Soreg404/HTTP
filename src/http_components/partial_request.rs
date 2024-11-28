@@ -1,6 +1,12 @@
 use std::fmt::Debug;
 use crate::{HTTPHeader, HTTPRequest};
 
+pub enum HTTPPart {
+	FirstLine,
+	Headers,
+
+}
+
 pub struct HTTPPartialRequest {
 	part_counter: u8,
 	is_complete: bool,
@@ -88,10 +94,6 @@ impl HTTPPartialRequest {
 				return;
 			}
 
-			if c == b'\r' {
-				continue;
-			}
-
 			if c != b'\n' {
 				self.internal_buffer.push(c);
 			}
@@ -131,10 +133,12 @@ impl HTTPPartialRequest {
 							self.part_counter = 2;
 						}
 					}
-					_ => {}
+					_ => {
+						self.internal_buffer.push(c);
+					}
 				}
 				self.new_line_hold = true;
-			} else {
+			} else if c != b'\r' {
 				self.new_line_hold = false;
 			}
 
