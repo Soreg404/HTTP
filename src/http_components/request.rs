@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display};
 use std::io::Write;
-use crate::HTTPHeader;
+use crate::{HTTPHeader, Url};
 
 pub struct HTTPRequestAttachment {
 	pub headers: HTTPHeader,
@@ -9,8 +9,7 @@ pub struct HTTPRequestAttachment {
 
 pub struct HTTPRequest {
 	pub method: String,
-	pub path: String,
-	pub query: String,
+	pub url: Url,
 	pub http_version: String,
 	pub headers: Vec<HTTPHeader>,
 	pub body: Vec<u8>,
@@ -20,8 +19,7 @@ impl Default for HTTPRequest {
 	fn default() -> Self {
 		Self {
 			method: String::from("GET"),
-			path: String::from("/"),
-			query: String::new(),
+			url: Url::default(),
 			http_version: String::from("HTTP/1.1"),
 			headers: vec![],
 			body: Vec::<u8>::new(),
@@ -31,10 +29,10 @@ impl Default for HTTPRequest {
 }
 impl HTTPRequest {
 	pub fn to_bytes(&self) -> Vec<u8> {
-		let mut uri = self.path.clone();
-		if !self.query.is_empty() {
-			uri.push('?');
-			uri.push_str(&self.query);
+		let mut url = self.url.path.clone();
+		if !self.url.query.is_empty() {
+			url.push('?');
+			url.push_str(&self.url.query);
 		}
 
 		let mut found_content_length_header = false;
@@ -56,7 +54,7 @@ impl HTTPRequest {
 		write!(&mut ret,
 			   "{} {} {}\r\n{}\r\n",
 			   self.method,
-			   uri,
+			   url,
 			   self.http_version,
 			   headers_joined
 		)
@@ -71,8 +69,8 @@ impl Debug for HTTPRequest {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
 		writeln!(f, "HTTP request (version={})", self.http_version)?;
 		writeln!(f, "method={}", self.method)?;
-		writeln!(f, "path={}", self.path)?;
-		writeln!(f, "query=\"{}\"", self.query)?;
+		writeln!(f, "path={}", self.url.path)?;
+		writeln!(f, "query=\"{}\"", self.url.query)?;
 		writeln!(f, "== headers ==")?;
 		for h in &self.headers {
 			writeln!(f, "-> [{}]: [{}]", h.name, h.value)?;

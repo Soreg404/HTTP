@@ -1,15 +1,26 @@
 use std::fmt::Debug;
-use crate::{HTTPHeader, HTTPRequest};
+use crate::{HTTPHeader, HTTPRequest, Url};
+use crate::http_components::mime_types::MimeType;
+use crate::HTTPPart::{FirstLine, RequestHeaders};
 
 pub enum HTTPPart {
 	FirstLine,
-	Headers,
+	RequestHeaders,
+	RequestData,
+	AttachmentHeaders(usize),
+	AttachmentData
+}
 
+pub struct HTTPAttachment {
+	number: usize,
+	mime: MimeType,
+	headers: Vec<HTTPHeader>,
+	data: Vec<u8>
 }
 
 pub struct HTTPPartialRequest {
-	part_counter: u8,
-	is_complete: bool,
+	part: HTTPPart,
+	parse_ended: bool,
 	internal_buffer: Vec<u8>,
 
 	new_line_hold: bool,
@@ -21,8 +32,8 @@ pub struct HTTPPartialRequest {
 impl Default for HTTPPartialRequest {
 	fn default() -> Self {
 		HTTPPartialRequest {
-			part_counter: 0,
-			is_complete: false,
+			part: FirstLine,
+			parse_ended: false,
 			internal_buffer: Vec::with_capacity(0x400),
 
 			new_line_hold: false,
@@ -42,68 +53,38 @@ impl HTTPPartialRequest {
 		s
 	}
 
-	fn parse_request_first_line(&mut self) -> Result<(), &'static str> {
+	fn parse_request_first_line(&mut self) -> Result<(), ()> {
 		let line_str = String::from_utf8_lossy(
-			self.internal_buffer.as_slice())
-			.to_string();
-		let line_trim = line_str.trim();
+			self.internal_buffer.as_slice()
+		)
+			.split_whitespace()
+			.map(|s| s.to_owned())
+			.collect::<Vec<String>>();
 
-
-		let mut subpart = 0;
-		let mut whitespace_hold = false;
-		let mut buffer = Vec::<char>::with_capacity(0x400);
-		let mut it = line_trim.chars().peekable();
-		while let Some(c) = it.next() {
-			if c.is_whitespace() || it.peek() == None {
-				if it.peek() == None {
-					buffer.push(c);
-				}
-				if !whitespace_hold {
-					whitespace_hold = true;
-
-					match subpart {
-						0 => self.parsed_request.method = buffer.iter().collect(),
-						1 => {
-							let uri: String = buffer.iter().collect();
-							let mut uri_it = uri.split('?');
-							self.parsed_request.path = uri_it.next().unwrap().to_string();
-							self.parsed_request.query = match (uri_it.next()) {
-								Some(v) => String::from(v),
-								None => String::new(),
-							};
-						}
-
-						2 => self.parsed_request.http_version = buffer.iter().collect(),
-						_ => return Err("bad format")
-					}
-					buffer.clear();
-					subpart += 1;
-				}
-			} else {
-				whitespace_hold = false;
-				buffer.push(c);
-			}
+		if line_str.len() != 3 {
+			Err(())
+		} else {
+			self.parsed_request.method = line_str.get(0).unwrap().to_owned();
+			self.parsed_request.url = Url::from_request_str(line_str.get(1).unwrap());
+			self.parsed_request.http_version = line_str.get(2).unwrap().to_owned();
+			Ok(())
 		}
-
-		Ok(())
 	}
 
 	pub fn push_bytes(&mut self, buffer: &[u8]) {
 		for c in buffer.iter().cloned() {
-			if self.is_complete {
+			if self.parse_ended {
 				return;
 			}
 
-			if c != b'\n' {
-				self.internal_buffer.push(c);
-			}
+			self.internal_buffer.push(c);
 
 			if c == b'\n' {
-				match self.part_counter {
-					0 => {
+				match self.part {
+					HTTPPart::FirstLine => {
 						self.parse_request_first_line()
 							.expect("bad first line");
-						self.part_counter = 1;
+						self.part = RequestHeaders;
 						self.internal_buffer.clear();
 					}
 					1 => {
@@ -130,7 +111,7 @@ impl HTTPPartialRequest {
 							});
 							self.internal_buffer.clear();
 						} else {
-							self.part_counter = 2;
+							self.part = 2;
 						}
 					}
 					_ => {
@@ -142,22 +123,22 @@ impl HTTPPartialRequest {
 				self.new_line_hold = false;
 			}
 
-			if self.part_counter == 2
-				&& !self.is_complete
+			if self.part == 2
+				&& !self.parse_ended
 				&& self.internal_buffer.len() >= self.content_length {
 				self.parsed_request.body.clone_from(&self.internal_buffer);
 				self.internal_buffer.clear();
-				self.is_complete = true;
+				self.parse_ended = true;
 			}
 		}
 	}
 
 	pub fn is_complete(&self) -> bool {
-		self.is_complete
+		self.parse_ended
 	}
 
 	pub fn get_complete_request(&self) -> Option<&HTTPRequest> {
-		if !self.is_complete {
+		if !self.parse_ended {
 			return None;
 		}
 		Some(&self.parsed_request)
@@ -166,7 +147,7 @@ impl HTTPPartialRequest {
 impl Debug for HTTPPartialRequest {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
 		writeln!(f, "HTTP partial request (complete={})",
-				 if self.is_complete { "true" } else { "false" })?;
+				 if self.parse_ended { "true" } else { "false" })?;
 		writeln!(f, "{:?}", self.parsed_request)?;
 		Ok(())
 	}
