@@ -1,15 +1,13 @@
 use std::io::{BufRead, Read, Write};
 use std::net::Shutdown;
 
-mod tests;
-
 use http::*;
 
 fn example_compose_request() {
 	let mut req = HTTPRequest::default();
 	req.method = String::from("POST");
-	req.path = String::from("/api/get-list");
-	req.query = String::from("hello=world");
+	req.url.path = String::from("/api/get-list");
+	req.url.query = String::from("hello=world");
 	req.headers.push(HTTPHeader {
 		name: String::from("host"),
 		value: String::from("localhost"),
@@ -147,7 +145,7 @@ fn handle_connection(
 	println!("responding...");
 
 	let req = req.get_complete_request().unwrap();
-	let response = match req.path.as_str() {
+	let response = match req.url.path.as_str() {
 		"/file-form" => {
 			let html = std::fs::read_to_string("html/file-form.html").unwrap();
 			HTTPResponse {

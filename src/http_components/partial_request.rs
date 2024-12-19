@@ -1,21 +1,23 @@
+use std::cmp::PartialEq;
 use std::fmt::Debug;
 use crate::{HTTPHeader, HTTPRequest, Url};
 use crate::http_components::mime_types::MimeType;
-use crate::HTTPPart::{FirstLine, RequestHeaders};
+use crate::HTTPPart::{FirstLine, RequestData, RequestHeaders};
 
+#[derive(PartialEq)]
 pub enum HTTPPart {
 	FirstLine,
 	RequestHeaders,
 	RequestData,
 	AttachmentHeaders(usize),
-	AttachmentData
+	AttachmentData,
 }
 
 pub struct HTTPAttachment {
 	number: usize,
 	mime: MimeType,
 	headers: Vec<HTTPHeader>,
-	data: Vec<u8>
+	data: Vec<u8>,
 }
 
 pub struct HTTPPartialRequest {
@@ -43,6 +45,8 @@ impl Default for HTTPPartialRequest {
 		}
 	}
 }
+
+
 impl HTTPPartialRequest {
 	pub fn new() -> Self {
 		Self::default()
@@ -71,6 +75,17 @@ impl HTTPPartialRequest {
 		}
 	}
 
+	fn parse_header_line(line: &str) -> Option<HTTPHeader> {
+		let pos = line.find(':');
+		if pos.is_none() {
+			return None;
+		}
+		let (header_name, header_value) = line.split_at(pos.unwrap());
+		let header_name = header_name.trim();
+		let header_value = header_value[1..].trim();
+		Some(HTTPHeader::new(header_name.to_owned(), header_value.to_owned()))
+	}
+
 	pub fn push_bytes(&mut self, buffer: &[u8]) {
 		for c in buffer.iter().cloned() {
 			if self.parse_ended {
@@ -81,49 +96,51 @@ impl HTTPPartialRequest {
 
 			if c == b'\n' {
 				match self.part {
-					HTTPPart::FirstLine => {
+					FirstLine => {
 						self.parse_request_first_line()
 							.expect("bad first line");
 						self.part = RequestHeaders;
 						self.internal_buffer.clear();
 					}
-					1 => {
-						if !self.new_line_hold {
-							let current_header_line = String::from_utf8_lossy(self.internal_buffer.as_slice())
-								.to_string();
-							let mut header_parts_it = current_header_line.split(':');
-							let mut header_name = header_parts_it.next()
-								.unwrap().trim().to_string();
-							let mut header_val = match (header_parts_it.next()) {
-								Some(v) => String::from(v).trim().to_string(),
-								None => String::new(),
-							};
-							if header_name.to_lowercase() == "content-length" {
-								self.content_length = match header_val.parse::<usize>() {
-									Ok(v) => v,
-									_ => 0
-								};
-							}
-
-							self.parsed_request.headers.push(HTTPHeader {
-								name: header_name,
-								value: header_val,
-							});
+					RequestHeaders => {
+						if self.new_line_hold {
+							self.part = RequestData;
 							self.internal_buffer.clear();
 						} else {
-							self.part = 2;
+							let current_header_line = String::from_utf8_lossy(
+								self.internal_buffer.as_slice()
+							)
+								.to_string();
+
+							let header = Self
+							::parse_header_line(&current_header_line)
+								.expect("bad header");
+
+							match header.name.to_lowercase().as_ref() {
+								"content-length" => {
+									self.content_length = match header.value.parse::<usize>() {
+										Ok(v) => v,
+										_ => 0
+									}
+								}
+								"content-type" => {
+
+								}
+								_ => {}
+							};
+
+							self.parsed_request.headers.push(header);
+							self.internal_buffer.clear();
 						}
 					}
-					_ => {
-						self.internal_buffer.push(c);
-					}
+					_ => {}
 				}
 				self.new_line_hold = true;
 			} else if c != b'\r' {
 				self.new_line_hold = false;
 			}
 
-			if self.part == 2
+			if self.part == RequestData
 				&& !self.parse_ended
 				&& self.internal_buffer.len() >= self.content_length {
 				self.parsed_request.body.clone_from(&self.internal_buffer);
@@ -157,3 +174,37 @@ impl Debug for HTTPPartialRequest {
 // 		writeln!(f, "{self:?}")
 // 	}
 // }
+
+
+#[cfg(test)]
+mod partial_request_tests {
+	use super::*;
+
+	mod parse_header_line {
+		use super::*;
+		#[test]
+		fn simple() {
+			let header = HTTPPartialRequest
+			::parse_header_line("content-type: text/plain");
+			assert!(header.is_some());
+			let header = header.unwrap();
+			assert_eq!(header.name.as_str(), "content-type");
+			assert_eq!(header.value.as_str(), "text/plain");
+		}
+
+		fn incomplete() {
+			let header = HTTPPartialRequest
+			::parse_header_line("content-type");
+			assert!(header.is_none());
+		}
+
+		fn whitespaces() {
+			let header = HTTPPartialRequest
+			::parse_header_line("    content-type    :    text/plain     ");
+			assert!(header.is_some());
+			let header = header.unwrap();
+			assert_eq!(header.name.as_str(), "content-type");
+			assert_eq!(header.value.as_str(), "text/plain");
+		}
+	}
+}

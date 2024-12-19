@@ -36,9 +36,9 @@ mod unescape {
 	#[test]
 	fn utf() {
 		assert_eq!(
-		Url::unescape("utf-8%20%E7%8C%AB"),
-		b"utf-8 猫".to_vec(),
-	);
+			Url::unescape("utf-8%20%E7%8C%AB"),
+			"utf-8 猫".as_bytes().to_vec(),
+		);
 	}
 
 	#[test]
@@ -53,7 +53,7 @@ mod unescape {
 	fn invalid_utf() {
 		assert_eq!(
 			Url::unescape("invalid utf-8: %E7%8C"),
-			b"invalid utf-8: \xFF\xFD}".to_vec()
+			b"invalid utf-8: \xE7\x8C".to_vec()
 		);
 	}
 }
@@ -71,21 +71,21 @@ mod escape {
 	#[test]
 	fn space() {
 		assert_eq!(
-			Url::escape("space space".to_vec().as_ref()),
+			Url::escape(b"space space".to_vec().as_ref()),
 			"space+space");
 	}
 	#[test]
 	fn special_chars() {
 		assert_eq!(
-			Url::escape("special chars: /=+".to_vec().as_ref()),
+			Url::escape("special chars: /=+".as_bytes().to_vec().as_ref()),
 			"special+chars%3A+%2F%3D%2B");
 	}
 }
 
 #[test]
 fn parse_query_string() {
-	let eq = HashMap::<String, String>::from([
-		("key".to_vec(), Some("value".to_vec()))
+	let eq = HashMap::<Vec<u8>, Option<Vec<u8>>>::from([
+		("key".as_bytes().to_vec(), Some("value".as_bytes().to_vec()))
 	]);
 	assert_eq!(Url::parse_query_string("key=value"), eq);
 }

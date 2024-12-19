@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::io::Read;
 
 #[cfg(test)]
 #[path = "./url_tests.rs"]
@@ -97,19 +98,20 @@ impl Url {
 		result_vec
 	}
 	pub fn escape(data: &Vec<u8>) -> String {
-		let mut ret = String::with_capacity(data.len() * 1.6);
+		// TODO: new lines encoded as CRLF
+		let mut ret = String::with_capacity((data.len() as f32 * 1.6) as usize);
 
-		for c in data.cloned() {
+		for c in data.iter().cloned() {
 			if (c as char).is_ascii_alphanumeric() || match c {
 				b'-' | b'_' | b'.' | b'~' => true,
 				_ => false,
 			} {
-				ret.push(c);
+				ret.push(c as char);
 			} else if c == b' ' {
-				ret.push(b'+');
+				ret.push('+');
 			} else {
-				ret.push(b'%');
-				ret.push_str(format!("{c:X}"));
+				ret.push('%');
+				ret.push_str(format!("{c:X}").as_ref());
 			}
 		}
 

@@ -1,5 +1,5 @@
 pub enum MimeType {
-	MultipartFormData,
+	Multipart,
 	TextPlain,
 	TextHtml,
 	TextJson,
