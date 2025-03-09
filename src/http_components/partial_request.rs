@@ -1,5 +1,6 @@
 use std::cmp::PartialEq;
 use std::fmt::Debug;
+use std::mem::swap;
 use crate::{HTTPHeader, HTTPRequest, Url};
 use crate::http_components::mime_types::MimeType;
 use crate::HTTPPart::{FirstLine, RequestData, RequestHeaders};
@@ -51,9 +52,9 @@ impl HTTPPartialRequest {
 	pub fn new() -> Self {
 		Self::default()
 	}
-	pub fn from_str(text: impl AsRef<str>) -> Self {
+	pub fn from_str(text: &str) -> Self {
 		let mut s = Self::default();
-		s.push_bytes(text.as_ref().as_bytes());
+		s.push_bytes(text.as_bytes());
 		s
 	}
 
@@ -123,9 +124,7 @@ impl HTTPPartialRequest {
 										_ => 0
 									}
 								}
-								"content-type" => {
-
-								}
+								"content-type" => {}
 								_ => {}
 							};
 
@@ -141,10 +140,8 @@ impl HTTPPartialRequest {
 			}
 
 			if self.part == RequestData
-				&& !self.parse_ended
 				&& self.internal_buffer.len() >= self.content_length {
-				self.parsed_request.body.clone_from(&self.internal_buffer);
-				self.internal_buffer.clear();
+				swap(&mut self.parsed_request.body, &mut self.internal_buffer);
 				self.parse_ended = true;
 			}
 		}

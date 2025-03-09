@@ -6,4 +6,3 @@ pub mod request;
 pub mod response;
 pub mod partial_request;
 pub mod attachment;
-mod multipart_request;
