@@ -1,4 +1,4 @@
-#[derive(PartialEq)]
+#[derive(PartialEq, Ord, PartialOrd, Eq)]
 pub enum MimeType {
 	Multipart,
 	TextPlain,

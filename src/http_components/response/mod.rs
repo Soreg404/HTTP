@@ -2,6 +2,9 @@ use std::fmt::{Debug, Display};
 use std::io::Write;
 use crate::HTTPHeader;
 
+#[cfg(test)]
+mod tests;
+
 pub struct HTTPResponse {
 	pub http_version: String,
 	pub status: usize,
@@ -19,7 +22,7 @@ impl Default for HTTPResponse {
 	}
 }
 impl HTTPResponse {
-	pub fn new_short(status_code: usize) -> Self {
+	pub fn quick(status_code: usize) -> Self {
 		Self {
 			status: status_code,
 			..Default::default()
