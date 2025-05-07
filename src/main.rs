@@ -13,7 +13,7 @@ fn main() {
 		.create(true)
 		.write(true)
 		.truncate(true)
-		.open("tmp-session.bin")
+		.open("../tmp-session.tmp")
 		.unwrap();
 
 	println!("server listening on port 8500.");
