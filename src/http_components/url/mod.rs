@@ -7,7 +7,7 @@ use std::str::FromStr;
 #[path = "./url_tests.rs"]
 mod url_tests;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Url {
 	// [scheme]://[domain]:[port]/[path]?[query_string]#[fragment]
 	pub scheme: String,

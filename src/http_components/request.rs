@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display};
 use std::io::Write;
-use crate::{HTTPHeader, Url, HTTPRequestAttachment, MimeType, HTTPAttachment, HTTPHeaders};
+use crate::{HTTPHeader, Url, MimeType, HTTPAttachment};
 
 pub struct HTTPRequest {
 	pub method: String,
@@ -8,7 +8,9 @@ pub struct HTTPRequest {
 	pub http_version: String,
 	pub headers: Vec<HTTPHeader>,
 	pub body: Vec<u8>,
+	pub attachments: Vec<HTTPAttachment>
 }
+
 impl Default for HTTPRequest {
 	fn default() -> Self {
 		Self {
@@ -17,9 +19,11 @@ impl Default for HTTPRequest {
 			http_version: String::from("HTTP/1.1"),
 			headers: Vec::default(),
 			body: Vec::default(),
+			attachments: Vec::default()
 		}
 	}
 }
+
 impl HTTPRequest {
 	pub fn to_bytes(&self) -> Vec<u8> {
 		let mut url = self.url.path_raw.clone();
@@ -64,19 +68,21 @@ impl HTTPRequest {
 }
 impl Debug for HTTPRequest {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-		writeln!(f, "HTTP request (version={})", self.http_version)?;
-		writeln!(f, "method={}", self.method)?;
-		writeln!(f, "path={}", self.url.path_raw)?;
-		writeln!(f, "query=\"{}\"", self.url.query_string_raw)?;
-		writeln!(f, "== headers ==")?;
+		writeln!(f, "| HTTP request (version={})", self.http_version)?;
+		writeln!(f, "| method={}", self.method)?;
+		writeln!(f, "| path={}", self.url.path_raw)?;
+		writeln!(f, "| query=\"{}\"", self.url.query_string_raw)?;
+		writeln!(f, "| headers:")?;
 		for h in &self.headers {
-			writeln!(f, "-> [{}]: [{}]", h.name, h.value)?;
+			writeln!(f, "| - [{}]: [{}]", h.name, h.value)?;
 		}
-		writeln!(f, "== body (length={}) ==", self.body.len())?;
-		writeln!(f, "{:?}", String::from_utf8_lossy(self.body.as_slice()))?;
+		writeln!(f, "| body, length={}:", self.body.len())?;
+		writeln!(f, "| {:?}", String::from_utf8_lossy(self.body.as_slice()))?;
+		writeln!(f, "| that's all.")?;
 		Ok(())
 	}
 }
+
 impl Display for HTTPRequest {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
 		write!(f, "{}", String::from_utf8_lossy(self.to_bytes().as_slice()))

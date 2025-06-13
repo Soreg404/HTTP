@@ -1,6 +1,7 @@
-use crate::HTTPHeader;
-
-pub struct HTTPRequestAttachment {
-	pub headers: Vec<HTTPHeader>,
-	pub data: Vec<u8>
+use crate::{HTTPHeader, MimeType};
+pub struct HTTPAttachment {
+	number: usize,
+	mime: MimeType,
+	headers: Vec<HTTPHeader>,
+	data: Vec<u8>,
 }

@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{BufRead, Read, Write};
+use std::io::{stdout, BufRead, Read, Write};
 use std::net::{Shutdown, SocketAddr};
 use std::path::Path;
 use http::{HTTPRequest, HTTPResponse};
@@ -25,8 +25,8 @@ impl SesLog {
 	fn write(&mut self, payload: &[u8]) {
 		match self.file_handle
 			.write(payload) {
+			Ok(_) => {}
 			Err(e) => println!("failed to write to session log file: {e}"),
-			_ => {}
 		}
 	}
 }
@@ -39,15 +39,16 @@ fn main() {
 	println!("done");
 
 	print!("initializing session debug log file...");
-	let mut ses_logfile = SesLog::new(Path::new("../tmp-session.tmp"))
+	let mut ses_logfile = SesLog::new(Path::new("tmp-session.log"))
 		.unwrap_or_else(|e| {
 			println!("failed");
-			panic!(e);
+			panic!("{e}");
 		});
 	println!("done");
 
 	loop {
 		print!("waiting for new connection...");
+		let _ = stdout().flush();
 		let mut client_socket = listener.accept();
 		match client_socket {
 			Ok((mut stream, peer)) => {
@@ -96,13 +97,17 @@ fn handle_connection(
 	ses_logfile.write(b">>>>>>>\n\n");
 
 	println!("== check attachments ==");
-	check_attachments(&req);
+	// check_attachments(&req);
 	println!("== done check attachments ==");
 
 
 	println!("== creating response ==");
 	let response = create_response(&req);
 	println!("== done creating response ==");
+
+	ses_logfile.write(b"response\n<<<<<<<");
+	ses_logfile.write(response.to_bytes().as_slice());
+	ses_logfile.write(b">>>>>>>\n\n");
 
 	print!("responding...");
 	match stream.write(response.to_bytes().as_slice()) {
@@ -157,7 +162,7 @@ fn create_response(req: &HTTPRequest) -> HTTPResponse {
 	response
 }
 
-fn check_attachments(req: &HTTPRequest) {
+/*fn check_attachments(req: &HTTPRequest) {
 
 	req.headers
 		.all_headers_raw
@@ -206,3 +211,4 @@ fn check_attachments(req: &HTTPRequest) {
 
 	Ok(())
 }
+*/

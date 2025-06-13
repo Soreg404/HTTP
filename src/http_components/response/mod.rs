@@ -30,7 +30,10 @@ impl HTTPResponse {
 	}
 	pub fn new_json(json_string: &str) -> Self {
 		HTTPResponse {
-			headers: vec![HTTPHeader::new("Content-Type", "application/json")],
+			headers: vec![HTTPHeader::new(
+				String::from("content-type"),
+				String::from("application/json")
+			)],
 			body: json_string.as_bytes().to_vec(),
 			..Default::default()
 		}
@@ -77,14 +80,15 @@ impl HTTPResponse {
 }
 impl Debug for HTTPResponse {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-		writeln!(f, "HTTP response (version={})", self.http_version)?;
-		writeln!(f, "status={} (\"{}\")", self.status, Self::status_code_str(self.status))?;
-		writeln!(f, "== headers ==")?;
+		writeln!(f, "| HTTP response (version={})", self.http_version)?;
+		writeln!(f, "| status={} (\"{}\")", self.status, Self::status_code_str(self.status))?;
+		writeln!(f, "| headers:")?;
 		for h in &self.headers {
-			writeln!(f, "-> [{}]: [{}]", h.name, h.value)?;
+			writeln!(f, "| - [{}]: [{}]", h.name, h.value)?;
 		}
-		writeln!(f, "== body (length={}) ==", self.body.len())?;
-		writeln!(f, "{}", String::from_utf8_lossy(&self.body).to_string())?;
+		writeln!(f, "| body, length={}:", self.body.len())?;
+		writeln!(f, "| {:?}", String::from_utf8_lossy(&self.body).to_string())?;
+		writeln!(f, "| that's all.")?;
 		Ok(())
 	}
 }
