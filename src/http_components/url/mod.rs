@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::io::Read;
+use std::str::FromStr;
 
 #[cfg(test)]
 #[path = "./url_tests.rs"]
@@ -8,25 +9,29 @@ mod url_tests;
 
 #[derive(Default)]
 pub struct Url {
-	// [scheme]://[Domain][Port]/[path]?[queryString]#[fragmentId]
+	// [scheme]://[domain]:[port]/[path]?[query_string]#[fragment]
 	pub scheme: String,
 	pub domain: String,
 	pub port: u16,
-	pub path: String,
+	pub path_raw: String,
 	pub path_parts: Vec<Vec<u8>>,
-	pub query: String,
+	pub query_string_raw: String,
 	pub query_variables: HashMap<Vec<u8>, Option<Vec<u8>>>,
-	pub fragment_id: String,
+	pub fragment: String,
 }
 
-impl Url {
-	pub fn from_request_str(request: &str) -> Self {
-		let (request, fragment_id) = {
-			let pos = request.find('#');
+impl FromStr for Url {
+	type Err = ();
+
+	/** todo: this needs redoing */
+	fn from_str(url_str: &str) -> Result<Self, Self::Err> {
+
+		let (request, fragment_pos) = {
+			let pos = url_str.find('#');
 			if pos.is_some() {
-				request.split_at(pos.unwrap())
+				url_str.split_at(pos.unwrap())
 			} else {
-				(request, "")
+				(url_str, "")
 			}
 		};
 
@@ -45,14 +50,14 @@ impl Url {
 			.map(|s| Self::unescape(s))
 			.collect();
 
-		Self {
-			path: path.to_owned(),
+		Ok(Self {
+			path_raw: path.to_owned(),
 			path_parts,
-			query: query_str.to_owned(),
+			query_string_raw: query_str.to_owned(),
 			query_variables: Self::parse_query_string(query_str),
-			fragment_id: fragment_id.to_owned(),
+			fragment: fragment_pos.to_owned(),
 			..Self::default()
-		}
+		})
 	}
 }
 
@@ -134,12 +139,12 @@ impl Url {
 	}
 	pub fn from_absolute(line: &str) -> Url {
 		// scheme://host/path
-		panic!("not implemented");
+		unimplemented!()
 	}
 	pub fn from_relative(line: &str) -> Url {
 		// path || /path
 		// default host & scheme
-		panic!("not implemented");
+		unimplemented!()
 	}
 }
 

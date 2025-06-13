@@ -6,7 +6,7 @@ pub struct HTTPRequest {
 	pub method: String,
 	pub url: Url,
 	pub http_version: String,
-	pub headers: HTTPHeaders,
+	pub headers: Vec<HTTPHeader>,
 	pub body: Vec<u8>,
 }
 impl Default for HTTPRequest {
@@ -15,17 +15,17 @@ impl Default for HTTPRequest {
 			method: String::from("GET"),
 			url: Url::default(),
 			http_version: String::from("HTTP/1.1"),
-			headers: HTTPHeaders::default(),
-			body: Vec::<u8>::new(),
+			headers: Vec::default(),
+			body: Vec::default(),
 		}
 	}
 }
 impl HTTPRequest {
 	pub fn to_bytes(&self) -> Vec<u8> {
-		let mut url = self.url.path.clone();
-		if !self.url.query.is_empty() {
+		let mut url = self.url.path_raw.clone();
+		if !self.url.query_string_raw.is_empty() {
 			url.push('?');
-			url.push_str(&self.url.query);
+			url.push_str(&self.url.query_string_raw);
 		}
 
 		let mut found_content_length_header = false;
@@ -66,8 +66,8 @@ impl Debug for HTTPRequest {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
 		writeln!(f, "HTTP request (version={})", self.http_version)?;
 		writeln!(f, "method={}", self.method)?;
-		writeln!(f, "path={}", self.url.path)?;
-		writeln!(f, "query=\"{}\"", self.url.query)?;
+		writeln!(f, "path={}", self.url.path_raw)?;
+		writeln!(f, "query=\"{}\"", self.url.query_string_raw)?;
 		writeln!(f, "== headers ==")?;
 		for h in &self.headers {
 			writeln!(f, "-> [{}]: [{}]", h.name, h.value)?;

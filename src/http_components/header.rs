@@ -12,18 +12,20 @@ pub enum HTTPHeader {
 
 impl HTTPHeader {
 	pub fn from_line(line: &str) -> Self {
-		let split = line.find(":");
-		if split.is_none() {
-			return HTTPHeader::InvalidLine(line.to_string());
+		match line.find(":") {
+			Some(index) => {
+				let (name, value) = line.split_at(index);
+				Self::from_name_value(name, value)
+			}
+			None => {
+				HTTPHeader::InvalidLine(line.to_string())
+			}
 		}
-		let (name, value) = line.split_at(split.unwrap());
-
-		return Self::from_str(name, value);
 	}
 
-	pub fn from_str(name: &str, value: &str) -> Self {
-		let name = name.trim();
-		let value = value.trim();
+	pub fn from_name_value(name: &str, value: &str) -> Self {
+		let name = name.trim().to_string();
+		let value = value.trim().to_string();
 
 		let name_lower = name.to_lowercase();
 
@@ -31,9 +33,10 @@ impl HTTPHeader {
 			"content-length" => {
 				match value.parse::<usize>() {
 					Ok(v) => HTTPHeader::ContentLength(v),
-					Err(_) => HTTPHeader::InvalidHeader()
+					Err(_) => HTTPHeader::InvalidHeader(name, value)
 				}
 			}
+			_ => HTTPHeader::Other(name, value)
 		}
 	}
 	pub fn parse_value(&self) -> Vec<(String, Vec<(String, String)>)> {

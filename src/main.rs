@@ -1,112 +1,169 @@
+use std::fs::File;
 use std::io::{BufRead, Read, Write};
-use std::net::Shutdown;
+use std::net::{Shutdown, SocketAddr};
+use std::path::Path;
+use http::{HTTPRequest, HTTPResponse};
 
 mod examples;
+
+struct SesLog {
+	file_handle: File,
+}
+
+impl SesLog {
+	fn new(path: &Path) -> std::io::Result<Self> {
+		Ok(
+			Self {
+				file_handle: std::fs::OpenOptions::new()
+					.create(true)
+					.write(true)
+					.truncate(true)
+					.open(path)?
+			}
+		)
+	}
+	fn write(&mut self, payload: &[u8]) {
+		match self.file_handle
+			.write(payload) {
+			Err(e) => println!("failed to write to session log file: {e}"),
+			_ => {}
+		}
+	}
+}
 
 fn main() {
 	examples::run_examples();
 
-	println!("starting server...");
-	let mut listener = std::net::TcpListener::bind("127.0.0.1:8500").unwrap();
+	print!("starting testing server on localhost:8500...");
+	let mut listener = std::net::TcpListener::bind("localhost:8500").unwrap();
+	println!("done");
 
-	let mut ses_logfile = std::fs::OpenOptions::new()
-		.create(true)
-		.write(true)
-		.truncate(true)
-		.open("../tmp-session.tmp")
-		.unwrap();
+	print!("initializing session debug log file...");
+	let mut ses_logfile = SesLog::new(Path::new("../tmp-session.tmp"))
+		.unwrap_or_else(|e| {
+			println!("failed");
+			panic!(e);
+		});
+	println!("done");
 
-	println!("server listening on port 8500.");
-	for stream in listener.incoming() {
-		match stream {
-			Ok(stream) => {
-				println!("accepted a new connection");
-				handle_connection(stream, &mut ses_logfile);
+	loop {
+		print!("waiting for new connection...");
+		let mut client_socket = listener.accept();
+		match client_socket {
+			Ok((mut stream, peer)) => {
+				println!("accepted {:?}", &peer);
+
+				println!("=== handling connection ===");
+				handle_connection(&mut stream, &peer, &mut ses_logfile);
+				println!("=== done handling connection ===");
+				println!();
 			}
-			Err(_) => {
-				println!("connection error");
-				break;
+			Err(e) => {
+				println!("failed with error {:?}", e);
 			}
 		}
 	}
-
-	println!("bye");
 }
 
 fn handle_connection(
-	mut stream: std::net::TcpStream,
-	ses_logfile: &mut std::fs::File,
+	stream: &mut std::net::TcpStream,
+	peer: &SocketAddr,
+	ses_logfile: &mut SesLog,
 ) {
 	let mut req = http::HTTPPartialRequest::default();
-	ses_logfile.write(b"new connection \n<<<<<<<").unwrap_or_default();
+	ses_logfile.write(format!("new connection from {peer}\n<<<<<<<").as_bytes());
 
+	print!("collecting request...");
 	let mut buffer = [0; 0x400];
-	loop {
-		// println!("reading...");
-		let n = stream.read(&mut buffer).expect("failed to read");
-		// println!("read {} bytes", n);
+	while !req.is_complete() {
+		let n = stream.read(&mut buffer)
+			.expect("failed to read stream");
 
 		if n == 0 {
-			println!("connection closed by peer");
-			break;
+			println!("failed; connection lost before request completion");
+			return;
 		}
+		ses_logfile.write(&buffer[0..n]);
 
-		ses_logfile.write(&buffer[0..n]).unwrap_or_default();
-
-		req.push_bytes(buffer[..n].as_ref());
-
-		if req.is_complete() {
-			break;
-		}
+		req.push_bytes(&buffer[..n]);
 	}
+	println!("done");
 
-	// println!("{:?}", req);
-	ses_logfile.flush().unwrap();
-	ses_logfile.write(b">>>>>>>\n\n").unwrap();
+	let req = req.get_complete_request()
+		.expect("should be completed here");
+	println!("complete request debug view: {:?}", &req);
 
-	if !req.is_complete() {
-		println!("incomplete request, bail");
-		return;
-	}
+	ses_logfile.write(b">>>>>>>\n\n");
 
-	println!("responding...");
+	println!("== check attachments ==");
+	check_attachments(&req);
+	println!("== done check attachments ==");
 
-	let req = req.get_complete_request().unwrap();
 
-	println!("attachments test: {:?}", attachments_test(&req));
+	println!("== creating response ==");
+	let response = create_response(&req);
+	println!("== done creating response ==");
 
-	let response = match req.url.path.as_str() {
-		"/file-form" => {
-			let html = std::fs::read_to_string("html/file-form.html").unwrap();
-			http::HTTPResponse {
-				body: html.as_bytes().to_vec(),
-				..http::HTTPResponse::default()
-			}
+	print!("responding...");
+	match stream.write(response.to_bytes().as_slice()) {
+		Ok(count) => {
+			println!("done: wrote {count} bytes");
 		}
-		"/file-form-result" => {
-			http::HTTPResponse::quick(200)
+		Err(e) => {
+			println!("failed: {e}");
 		}
-		_ => http::HTTPResponse::quick(404)
 	};
 
-	if response.body.len() < 60 {
-		println!("response: {:?}", &response);
-	}
-
-	let result = stream.write(response.to_bytes().as_slice());
-	if result.is_err() {
-		println!("write error");
-	}
-
-	stream.flush().expect("failed to flush");
-
-	println!("closing connection...");
-	stream.shutdown(Shutdown::Write).expect("failed to close connection");
-	stream.shutdown(Shutdown::Read).expect("failed to close connection");
+	print!("closing connection...");
+	stream.flush()
+		.unwrap_or_else(|e| println!("failed to flush: {e}"));
+	stream.shutdown(Shutdown::Write)
+		.unwrap_or_else(|e| println!("failed to shutdown write: {e}"));
+	stream.shutdown(Shutdown::Read)
+		.unwrap_or_else(|e| println!("failed to shutdown read: {e}"));
 	println!("done");
 }
 
-fn attachments_test(req: &http::HTTPRequest) -> Result<(), &str> {
+fn create_response(req: &HTTPRequest) -> HTTPResponse {
+	let response = match req.url.path_raw.as_str() {
+		"/file-form" => {
+			match std::fs::read_to_string("html/file-form.html") {
+				Ok(html) => {
+					HTTPResponse {
+						body: html.as_bytes().to_vec(),
+						status: 200,
+						..HTTPResponse::default()
+					}
+				}
+				Err(e) => {
+					HTTPResponse {
+						body: b"failed to load html/file-form.html".to_vec(),
+						status: 500,
+						..HTTPResponse::default()
+					}
+				}
+			}
+		}
+		"/file-form-result" => {
+			HTTPResponse::quick(200)
+		}
+		_ => HTTPResponse::quick(404)
+	};
+
+	if response.body.len() < 60 {
+		println!("response debug view: {:?}", &response);
+	}
+
+	response
+}
+
+fn check_attachments(req: &HTTPRequest) {
+
+	req.headers
+		.all_headers_raw
+		.iter()
+		.find(|h| h.name.to_lowercase().eq("content-type"));
+
 	let content_type_header = req.headers
 		.iter().find(|h| h.name.to_lowercase().eq("content-type"));
 
