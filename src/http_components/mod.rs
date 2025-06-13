@@ -1,4 +1,4 @@
-pub mod mime_types;
+pub mod mime_type;
 pub mod parse_error;
 pub mod header;
 pub mod url;
