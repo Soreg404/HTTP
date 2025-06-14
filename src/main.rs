@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{stdout, BufRead, Read, Write};
 use std::net::{Shutdown, SocketAddr};
 use std::path::Path;
-use http::{HTTPRequest, HTTPResponse};
+use http::{HTTPHeader, HTTPRequest, HTTPResponse};
 
 mod examples;
 
@@ -23,6 +23,7 @@ impl SesLog {
 		)
 	}
 	fn write(&mut self, payload: &[u8]) {
+		return;
 		match self.file_handle
 			.write(payload) {
 			Ok(_) => {}
@@ -75,7 +76,7 @@ fn handle_connection(
 	ses_logfile.write(format!("new connection from {peer}\n<<<<<<<").as_bytes());
 
 	print!("collecting request...");
-	let mut buffer = [0; 0x400];
+	let mut buffer = [0; 0x4000];
 	while !req.is_complete() {
 		let n = stream.read(&mut buffer)
 			.expect("failed to read stream");
@@ -150,7 +151,67 @@ fn create_response(req: &HTTPRequest) -> HTTPResponse {
 			}
 		}
 		"/file-form-result" => {
-			HTTPResponse::quick(200)
+			let attachment =
+				match req.attachments
+					.iter()
+					.find(|a| a.name == "file") {
+					Some(a) => a,
+					None => return HTTPResponse::quick(400)
+				};
+
+			let mut msg =
+				format!(
+					"<h1>submitted a file!</h1>\n\
+					<div><a href='/file-form'>submit another!</a></div>
+					<span><u>name:</u>&nbsp;{:?}</span><br>\n\
+					<span><u>size:</u>&nbsp;{}</span>\n",
+					attachment.filename,
+					attachment.data.len()
+				);
+
+			let path = Path::new("upload.jpg");
+
+			match std::fs::write(&path, &attachment.data) {
+				Ok(_) => {
+					msg.push_str(
+						format!("<div>successfully saved to <code>{path:?}</code>!</div>\n")
+							.as_str()
+					)
+				}
+				Err(e) => {
+					msg.push_str(
+						format!("<div>failed to save file!</div>\n<div>{e}</div>\n").as_str()
+					)
+				}
+			};
+
+			msg.push_str(r#"<div>lookie lookie!</div>"#);
+			msg.push('\n');
+
+			msg.push_str(r#"<div><img src="/upload" width="500" alt="the image from /upload"></div>"#);
+			msg.push('\n');
+
+			HTTPResponse {
+				body: msg.as_bytes().to_vec(),
+				..Default::default()
+			}
+		}
+		"/upload" => {
+			match std::fs::read("upload.jpg") {
+				Ok(file_data) => {
+					HTTPResponse {
+						headers: vec![
+							HTTPHeader::new(
+								"content-type".to_string(),
+								"image/jpeg".to_string()
+							)
+						],
+						body: file_data,
+						..Default::default()
+					}
+				}
+				Err(e) => HTTPResponse::quick(404)
+			}
 		}
 		_ => HTTPResponse::quick(404)
 	};

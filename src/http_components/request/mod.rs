@@ -7,6 +7,7 @@ pub struct HTTPRequest {
 	pub url: Url,
 	pub http_version: String,
 	pub headers: Vec<HTTPHeader>,
+	pub mime_type: MimeType,
 	pub body: Vec<u8>,
 	pub attachments: Vec<HTTPAttachment>
 }
@@ -18,6 +19,7 @@ impl Default for HTTPRequest {
 			url: Url::default(),
 			http_version: String::from("HTTP/1.1"),
 			headers: Vec::default(),
+			mime_type: MimeType::Unspecified,
 			body: Vec::default(),
 			attachments: Vec::default()
 		}
@@ -66,18 +68,33 @@ impl HTTPRequest {
 		todo!()
 	}
 }
+
 impl Debug for HTTPRequest {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
 		writeln!(f, "| HTTP request (version={})", self.http_version)?;
 		writeln!(f, "| method={}", self.method)?;
 		writeln!(f, "| path={}", self.url.path_raw)?;
-		writeln!(f, "| query=\"{}\"", self.url.query_string_raw)?;
+		writeln!(f, "| query={:?}", self.url.query_string_raw)?;
 		writeln!(f, "| headers:")?;
 		for h in &self.headers {
 			writeln!(f, "| - [{}]: [{}]", h.name, h.value)?;
 		}
+		writeln!(f, "| mime-type={:?}", self.mime_type)?;
 		writeln!(f, "| body, length={}:", self.body.len())?;
-		writeln!(f, "| {:?}", String::from_utf8_lossy(self.body.as_slice()))?;
+		if self.body.len() < 0x1000 {
+			writeln!(f, "| {:?}", String::from_utf8_lossy(self.body.as_slice()))?;
+		} else {
+			writeln!(f, "| [body too long to display]")?;
+		}
+		match &self.mime_type {
+			MimeType::Multipart(_) => {
+				writeln!(f, "| attachments:")?;
+				for attachment in &self.attachments {
+					writeln!(f, "{:?}", attachment)?;
+				}
+			}
+			_ => {}
+		}
 		writeln!(f, "| that's all.")?;
 		Ok(())
 	}

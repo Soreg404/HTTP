@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use crate::MimeType;
 
 #[derive(Debug, PartialEq, Default, Clone)]
 pub struct HTTPHeader {
@@ -31,6 +32,48 @@ impl FromStr for HTTPHeader {
 				None => Self::default()
 			}
 		)
+	}
+}
+
+
+/**
+ * temporary, until no better solution
+ */
+impl HTTPHeader {
+	pub fn parse_content_type_value(value: &str) -> MimeType {
+		let mut splits = value.split(';');
+
+		let first_part = match splits.next() {
+			None => {
+				return MimeType::Unspecified;
+			}
+			Some(first_part) => {
+				first_part.trim().to_lowercase()
+			}
+		};
+
+		if first_part != "multipart/form-data" {
+			return match first_part.as_str() {
+				"text/plain" => MimeType::TextPlain,
+				"text/html" => MimeType::TextHtml,
+				"application/json" | "text/json" => MimeType::TextJson,
+				"image/jpeg" => MimeType::ImageJpg,
+				"image/png" => MimeType::ImagePng,
+				_ => MimeType::Unspecified
+			};
+		}
+
+		let boundary_arg = match splits.next() {
+			None => return MimeType::Unspecified,
+			Some(s) => s.trim().to_string()
+		};
+
+		let boundary_value = match boundary_arg.split('=').nth(1) {
+			None => return MimeType::Unspecified,
+			Some(v) => v.to_string()
+		};
+
+		MimeType::Multipart(boundary_value)
 	}
 }
 

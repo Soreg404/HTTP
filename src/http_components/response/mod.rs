@@ -87,7 +87,11 @@ impl Debug for HTTPResponse {
 			writeln!(f, "| - [{}]: [{}]", h.name, h.value)?;
 		}
 		writeln!(f, "| body, length={}:", self.body.len())?;
-		writeln!(f, "| {:?}", String::from_utf8_lossy(&self.body).to_string())?;
+		if self.body.len() < 0x1000 {
+			writeln!(f, "| {:?}", String::from_utf8_lossy(self.body.as_slice()))?;
+		} else {
+			writeln!(f, "| [body too long to display]")?;
+		}
 		writeln!(f, "| that's all.")?;
 		Ok(())
 	}

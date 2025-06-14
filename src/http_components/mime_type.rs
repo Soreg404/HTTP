@@ -1,6 +1,9 @@
-#[derive(PartialEq, Ord, PartialOrd, Eq)]
+use std::fmt::{Debug};
+
+#[derive(Debug, PartialEq, Ord, PartialOrd, Eq)]
 pub enum MimeType {
-	Multipart,
+	Unspecified,
+	Multipart(String),
 	TextPlain,
 	TextHtml,
 	TextJson,
