@@ -6,3 +6,6 @@ pub mod request;
 pub mod response;
 pub mod partial_request;
 pub mod attachment;
+pub mod partial_response;
+
+mod buffer_reader;

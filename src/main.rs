@@ -1,16 +1,17 @@
+use std::fmt::format;
 use std::fs::File;
 use std::io::{stdout, BufRead, Read, Write};
 use std::net::{Shutdown, SocketAddr};
 use std::path::Path;
-use http::{HTTPHeader, HTTPRequest, HTTPResponse};
+use http::{HTTPHeader, HTTPPartialRequest, HTTPRequest, HTTPResponse};
 
 mod examples;
 
-struct SesLog {
+struct Log {
 	file_handle: File,
 }
 
-impl SesLog {
+impl Log {
 	fn new(path: &Path) -> std::io::Result<Self> {
 		Ok(
 			Self {
@@ -23,11 +24,10 @@ impl SesLog {
 		)
 	}
 	fn write(&mut self, payload: &[u8]) {
-		return;
 		match self.file_handle
 			.write(payload) {
 			Ok(_) => {}
-			Err(e) => println!("failed to write to session log file: {e}"),
+			Err(e) => println!("failed to write to log file: {e}"),
 		}
 	}
 }
@@ -35,34 +35,50 @@ impl SesLog {
 fn main() {
 	examples::run_examples();
 
+	let server_thread_handle = std::thread::spawn(start_sample_server);
+
+	let mut con = std::net::TcpStream::connect("example.com:80").unwrap();
+	println!("{con:?}");
+	let mut req = HTTPRequest::default();
+	req.method = String::from("GET");
+	// req.url = ;
+	req.headers = vec![
+		HTTPHeader::new("host".into(), "example.com".into()),
+	];
+	let req_bytes = req.to_bytes();
+	println!("{:?}", &req_bytes);
+	con.write_all(&req_bytes).unwrap();
+
+	// let mut response_collector = HTTPPartialRe::default();
+	// let mut buffer = [0u8; 0x400];
+	// while !response_collector.
+
+
+	println!("main finished, waiting for server thread to join in.");
+	server_thread_handle.join().unwrap();
+}
+
+fn start_sample_server() {
 	print!("starting testing server on localhost:8500...");
 	let mut listener = std::net::TcpListener::bind("localhost:8500").unwrap();
 	println!("done");
 
-	print!("initializing session debug log file...");
-	let mut ses_logfile = SesLog::new(Path::new("tmp-session.log"))
+	print!("initializing server session log file...");
+	let mut log = Log::new(Path::new("server-session.log"))
 		.unwrap_or_else(|e| {
 			println!("failed");
 			panic!("{e}");
 		});
 	println!("done");
 
+	println!("sample server loop starts.");
 	loop {
-		print!("waiting for new connection...");
-		let _ = stdout().flush();
-		let mut client_socket = listener.accept();
-		match client_socket {
-			Ok((mut stream, peer)) => {
-				println!("accepted {:?}", &peer);
+		match listener.accept() {
+			Ok((mut stream, peer))
+			=> handle_connection(&mut stream, &peer, &mut log),
 
-				println!("=== handling connection ===");
-				handle_connection(&mut stream, &peer, &mut ses_logfile);
-				println!("=== done handling connection ===");
-				println!();
-			}
-			Err(e) => {
-				println!("failed with error {:?}", e);
-			}
+			Err(e)
+			=> println!("server failed to accept connection: {:?}", e)
 		}
 	}
 }
@@ -70,64 +86,61 @@ fn main() {
 fn handle_connection(
 	stream: &mut std::net::TcpStream,
 	peer: &SocketAddr,
-	ses_logfile: &mut SesLog,
+	log: &mut Log,
 ) {
 	let mut req = http::HTTPPartialRequest::default();
-	ses_logfile.write(format!("new connection from {peer}\n<<<<<<<").as_bytes());
+	log.write(format!("handling connection from {peer}\n").as_bytes());
 
-	print!("collecting request...");
-	let mut buffer = [0; 0x4000];
+	log.write("collecting request...\n<<<<<<<".as_bytes());
+	let mut buffer = [0; 0x400];
 	while !req.is_complete() {
 		let n = stream.read(&mut buffer)
 			.expect("failed to read stream");
 
 		if n == 0 {
-			println!("failed; connection lost before request completion");
+			log.write(">>>>>>>\nfail: connection lost before request completion".as_bytes());
 			return;
 		}
-		ses_logfile.write(&buffer[0..n]);
+		log.write(&buffer[..n]);
 
 		req.push_bytes(&buffer[..n]);
 	}
-	println!("done");
+	log.write(">>>>>>>\ndone collecting request\n".as_bytes());
 
 	let req = req.get_complete_request()
 		.expect("should be completed here");
-	println!("complete request debug view: {:?}", &req);
+	log.write(format!("complete request debug view: {:?}\n", &req).as_bytes());
 
-	ses_logfile.write(b">>>>>>>\n\n");
-
-	println!("== check attachments ==");
+	log.write("check attachments (wip)...\n".as_bytes());
 	// check_attachments(&req);
-	println!("== done check attachments ==");
+	log.write("done check attachments\n".as_bytes());
 
 
-	println!("== creating response ==");
+	log.write("creating response...\n".as_bytes());
 	let response = create_response(&req);
-	println!("== done creating response ==");
+	log.write("done creating response\n".as_bytes());
 
-	ses_logfile.write(b"response\n<<<<<<<");
-	ses_logfile.write(response.to_bytes().as_slice());
-	ses_logfile.write(b">>>>>>>\n\n");
+	log.write("response bytes\n<<<<<<<".as_bytes());
+	log.write(response.to_bytes().as_slice());
+	log.write(">>>>>>>\n".as_bytes());
 
-	print!("responding...");
 	match stream.write(response.to_bytes().as_slice()) {
 		Ok(count) => {
-			println!("done: wrote {count} bytes");
+			log.write(format!("wrote {count} bytes to peer\n").as_bytes());
 		}
 		Err(e) => {
-			println!("failed: {e}");
+			log.write(format!("failed to respond to peer: {e}\n").as_bytes());
 		}
 	};
 
-	print!("closing connection...");
+	log.write("closing connection...\n".as_bytes());
 	stream.flush()
-		.unwrap_or_else(|e| println!("failed to flush: {e}"));
+		.unwrap_or_else(|e| log.write(format!("failed to flush: {e}\n").as_bytes()));
 	stream.shutdown(Shutdown::Write)
-		.unwrap_or_else(|e| println!("failed to shutdown write: {e}"));
+		.unwrap_or_else(|e| log.write(format!("failed to shutdown write: {e}\n").as_bytes()));
 	stream.shutdown(Shutdown::Read)
-		.unwrap_or_else(|e| println!("failed to shutdown read: {e}"));
-	println!("done");
+		.unwrap_or_else(|e| log.write(format!("failed to shutdown read: {e}\n").as_bytes()));
+	log.write("connection closed\n\n".as_bytes());
 }
 
 fn create_response(req: &HTTPRequest) -> HTTPResponse {
