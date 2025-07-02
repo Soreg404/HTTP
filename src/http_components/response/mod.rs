@@ -80,7 +80,7 @@ impl HTTPResponse {
 }
 impl Debug for HTTPResponse {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-		writeln!(f, "| HTTP response (version={})", self.http_version)?;
+		writeln!(f, "HTTP response (version={})", self.http_version)?;
 		writeln!(f, "| status={} (\"{}\")", self.status, Self::status_code_str(self.status))?;
 		writeln!(f, "| headers:")?;
 		for h in &self.headers {

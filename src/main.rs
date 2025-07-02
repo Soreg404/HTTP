@@ -37,6 +37,13 @@ fn main() {
 
 	let server_thread_handle = std::thread::spawn(start_sample_server);
 
+	// test_collect_response();
+
+	println!("main finished, waiting for server thread to join in.");
+	server_thread_handle.join().unwrap();
+}
+
+fn test_collect_response() {
 	let mut con = std::net::TcpStream::connect("example.com:80").unwrap();
 	println!("{con:?}");
 	let mut req = HTTPRequest::default();
@@ -53,9 +60,6 @@ fn main() {
 	// let mut buffer = [0u8; 0x400];
 	// while !response_collector.
 
-
-	println!("main finished, waiting for server thread to join in.");
-	server_thread_handle.join().unwrap();
 }
 
 fn start_sample_server() {
@@ -107,13 +111,21 @@ fn handle_connection(
 	}
 	log.write(">>>>>>>\ndone collecting request\n".as_bytes());
 
-	let req = req.get_complete_request()
-		.expect("should be completed here");
+	println!("debug partially parsed request: {}",
+			 req.debug_get_partially_parsed_request());
+
+	let req = match req.get_complete_request() {
+		Ok(r) => r,
+		Err(e) => {
+			println!("partial request error: {e:?}");
+			return;
+		}
+	};
 	log.write(format!("complete request debug view: {:?}\n", &req).as_bytes());
 
-	log.write("check attachments (wip)...\n".as_bytes());
-	// check_attachments(&req);
-	log.write("done check attachments\n".as_bytes());
+	log.write("check request attachments (wip)...\n".as_bytes());
+	check_attachments(&req);
+	log.write("done check request attachments\n".as_bytes());
 
 
 	log.write("creating response...\n".as_bytes());
@@ -236,53 +248,6 @@ fn create_response(req: &HTTPRequest) -> HTTPResponse {
 	response
 }
 
-/*fn check_attachments(req: &HTTPRequest) {
-
-	req.headers
-		.all_headers_raw
-		.iter()
-		.find(|h| h.name.to_lowercase().eq("content-type"));
-
-	let content_type_header = req.headers
-		.iter().find(|h| h.name.to_lowercase().eq("content-type"));
-
-	if content_type_header.is_none() { return Err("missing content-type header"); }
-	let content_type_header = content_type_header.unwrap();
-
-	// Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryaCMjE5pYm5kWl5MB
-
-	let pos = content_type_header.value.find(';');
-	if pos.is_none() { return Err("missing ';'"); }
-	let pos = pos.unwrap();
-	let (mime_type, boundary) = content_type_header.value.split_at(pos);
-	let mime_type = mime_type.trim();
-	let boundary = boundary[1..].trim();
-
-	if !mime_type.to_lowercase().eq("multipart/form-data") {
-		return Err("mime type is not multipart/form-data");
-	}
-	if !boundary.starts_with("boundary=") { return Err("invalid value"); }
-
-	let boundary = boundary.split_at("boundary=".len()).1.as_bytes();
-
-	println!("multipart with boundary {:?}", boundary);
-
-	for (i, window) in req.body.windows(boundary.len()).enumerate() {
-		if window != boundary {
-			continue;
-		}
-
-		println!("found boundary on i={i}");
-	}
-
-
-	// for part in b {
-	// 	println!("part len: {}", part.len());
-	// 	if part.len() < 400 {
-	// 		println!("part: {:?}", part);
-	// 	}
-	// }
-
-	Ok(())
+fn check_attachments(req: &HTTPRequest) {
+	println!("attachments: {:?}", &req.attachments);
 }
-*/

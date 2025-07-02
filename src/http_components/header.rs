@@ -40,12 +40,13 @@ impl FromStr for HTTPHeader {
  * temporary, until no better solution
  */
 impl HTTPHeader {
-	pub fn parse_content_type_value(value: &str) -> MimeType {
+	pub fn parse_content_type_value(value: &str)
+		-> (MimeType, Option<String>) {
 		let mut splits = value.split(';');
 
 		let first_part = match splits.next() {
 			None => {
-				return MimeType::Unspecified;
+				return (MimeType::Unspecified, None);
 			}
 			Some(first_part) => {
 				first_part.trim().to_lowercase()
@@ -54,26 +55,26 @@ impl HTTPHeader {
 
 		if first_part != "multipart/form-data" {
 			return match first_part.as_str() {
-				"text/plain" => MimeType::TextPlain,
-				"text/html" => MimeType::TextHtml,
-				"application/json" | "text/json" => MimeType::TextJson,
-				"image/jpeg" => MimeType::ImageJpg,
-				"image/png" => MimeType::ImagePng,
-				_ => MimeType::Unspecified
+				"text/plain" => (MimeType::TextPlain, None),
+				"text/html" => (MimeType::TextHtml, None),
+				"application/json" | "text/json" => (MimeType::TextJson, None),
+				"image/jpeg" => (MimeType::ImageJpg, None),
+				"image/png" => (MimeType::ImagePng, None),
+				_ => (MimeType::Unspecified, None),
 			};
 		}
 
 		let boundary_arg = match splits.next() {
-			None => return MimeType::Unspecified,
+			None => return (MimeType::Unspecified, None),
 			Some(s) => s.trim().to_string()
 		};
 
 		let boundary_value = match boundary_arg.split('=').nth(1) {
-			None => return MimeType::Unspecified,
+			None => return (MimeType::Unspecified, None),
 			Some(v) => v.to_string()
 		};
 
-		MimeType::Multipart(boundary_value)
+		(MimeType::Multipart, Some(boundary_value))
 	}
 }
 

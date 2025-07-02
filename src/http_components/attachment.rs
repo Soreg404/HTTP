@@ -1,5 +1,7 @@
 use std::fmt::{Debug, Formatter};
 use crate::{HTTPHeader, MimeType};
+
+#[derive(Default, Clone)]
 pub struct HTTPAttachment {
 	pub name: String,
 	pub headers: Vec<HTTPHeader>,
@@ -18,6 +20,12 @@ impl Debug for HTTPAttachment {
 			self.filename,
 			self.data.len()
 		)?;
+
+		if self.data.len() < 100 {
+			writeln!(f, "data: <<{}>>", String::from_utf8_lossy(&self.data))?;
+		} else {
+			writeln!(f, "[data too long to display]")?;
+		}
 
 		Ok(())
 	}

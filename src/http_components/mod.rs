@@ -8,4 +8,7 @@ pub mod partial_request;
 pub mod attachment;
 pub mod partial_response;
 
+mod endline;
 mod buffer_reader;
+mod parser;
+mod validator;

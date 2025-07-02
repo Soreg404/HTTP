@@ -12,6 +12,7 @@ enum ReadState {
 
 use std::ops::Add;
 use ReadState::*;
+use crate::http_components::endline;
 
 #[derive(Default)]
 pub struct BufferReader {
@@ -44,24 +45,13 @@ impl BufferReader {
 
 			ReadLine => {
 				while self.read_head < self.internal_buffer.len() {
-					match self.check_crlf_at_head() {
-						None => {}
-						Some(ending) => {
-							match ending {
-								LineEnding::LF => {
-									self.read_end = self.read_head;
-									println!("got LF ending");
-								}
-								LineEnding::CRLF => {
-									self.read_end = self.read_head.checked_sub(1)
-										.expect("read_head should be > 0 here");
-									println!("got CRLF ending; read_start={}, read_end={}",
-											 self.read_start, self.read_end);
-								}
-							}
-							self.read_state = ReadLineFinished;
-							return true;
-						}
+					if self.internal_buffer[self.read_head] == b'\n' {
+						let line = endline::strip_last_endl(
+							&self.internal_buffer[self.read_start..=self.read_head]
+						);
+						self.read_end = self.read_start + line.len();
+						self.read_state = ReadLineFinished;
+						return true
 					}
 					self.read_head += 1;
 				}
@@ -72,7 +62,8 @@ impl BufferReader {
 				while self.read_head < self.internal_buffer.len() {
 					if self.internal_buffer[0..=self.read_head]
 						.ends_with(sequence.as_slice()) {
-						self.read_end = (self.read_head + 1).checked_sub(sequence.len())
+						self.read_head += 1;
+						self.read_end = self.read_head.checked_sub(sequence.len())
 							.expect("invalid head position");
 						self.read_state = ReadUntilFinished;
 						return true;
@@ -86,34 +77,13 @@ impl BufferReader {
 				while self.read_head < self.internal_buffer.len() {
 					if (self.read_head + 1) - self.read_start == *size {
 						self.read_state = ReadExactFinished;
-						self.read_end = self.read_head + 1;
+						self.read_head += 1;
+						self.read_end = self.read_head;
 						return true;
 					}
 					self.read_head += 1;
 				}
 				false
-			}
-		}
-	}
-
-	fn check_crlf_at_head(&self) -> Option<LineEnding> {
-		if self.internal_buffer.get(self.read_head) != Some(&b'\n') {
-			return None;
-		}
-		match self.read_head.checked_sub(1) {
-			None => Some(LineEnding::LF),
-			Some(idx) => {
-				match self.internal_buffer.get(idx) {
-					None => unreachable!("invalid head / \
-										head not synced with buffer"),
-					Some(v) => {
-						if v == &b'\r' {
-							Some(LineEnding::CRLF)
-						} else {
-							Some(LineEnding::LF)
-						}
-					}
-				}
 			}
 		}
 	}
@@ -139,11 +109,11 @@ impl BufferReader {
 		}
 	}
 
-	pub fn read_until(&mut self, sequence: Vec<u8>) -> Option<&[u8]> {
+	pub fn read_until(&mut self, sequence: &[u8]) -> Option<&[u8]> {
 		match self.read_state {
 			Ready => {
 				self.read_start = self.read_head;
-				self.read_state = ReadUntil(sequence);
+				self.read_state = ReadUntil(sequence.to_vec());
 				None
 			}
 			ReadUntil(_) => None,
@@ -177,6 +147,14 @@ impl BufferReader {
 			_ => panic!("invalid operation; \
 			tried to read_exact when state was {:?}", self.read_state)
 		}
+	}
+
+	pub fn get_head_idx(&self) -> usize {
+		self.read_head
+	}
+
+	pub fn len(&self) -> usize {
+		self.internal_buffer.len()
 	}
 }
 
@@ -212,7 +190,7 @@ mod tests {
 		assert_eq!(buffer.advance(), true);
 		assert_eq!(buffer.read_state, ReadLineFinished);
 		assert_eq!(buffer.read_line(), Some("line 1".as_bytes()),
-				   "reading first line failed");
+				   "reading first line");
 		assert_eq!(buffer.read_state, Ready);
 		assert_eq!(buffer.read_head, 8,
 				   "expecting head to be just after the first line");
@@ -227,7 +205,7 @@ mod tests {
 		assert_eq!(buffer.advance(), true);
 		assert_eq!(buffer.read_state, ReadLineFinished);
 		assert_eq!(buffer.read_line(), Some("line 2".as_bytes()),
-				   "reading second line failed");
+				   "reading second line");
 
 		assert_eq!(buffer.read_state, Ready);
 	}
@@ -297,13 +275,25 @@ mod tests {
 	#[test]
 	fn read_until_on_simple_buffer() {
 		let mut buffer = BufferReader::default();
-		buffer.append("Lorem ipsum dolor sit amet= after boundary".as_bytes());
-		assert_eq!(buffer.read_until(Vec::from([b'='])), None);
+		buffer.append("Lorem ipsum ===+ dolor sit amet==== after boundary".as_bytes());
+		assert_eq!(buffer.read_until(b"===="), None);
 		assert_eq!(buffer.advance(), true);
-		assert_eq!(buffer.read_until(Vec::from([b'='])),
-				   Some(b"Lorem ipsum dolor sit amet".as_slice()),
-				   "trying to read all bytes until the '=' boundary");
+		assert_eq!(buffer.read_until(b"===="),
+				   Some(b"Lorem ipsum ===+ dolor sit amet".as_slice()),
+				   "trying to read all bytes until the '====' boundary");
 		assert_eq!(buffer.read_state, Ready);
+		assert_eq!(buffer.read_head, 35, "head is after the end of the boundary");
+	}
+
+	#[test]
+	fn read_exact_simple_buffer() {
+		let mut buffer = BufferReader::default();
+		assert_eq!(buffer.read_exact(5), None);
+		buffer.append(b"1234567890");
+
+		assert_eq!(buffer.advance(), true);
+		assert_eq!(buffer.read_exact(5), Some(b"12345".as_slice()));
+		assert_eq!(buffer.read_head, 5);
 	}
 
 	#[test]

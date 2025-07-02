@@ -1,9 +1,10 @@
 use std::fmt::{Debug};
 
-#[derive(Debug, PartialEq, Ord, PartialOrd, Eq)]
+#[derive(Debug, Default, PartialEq, Ord, PartialOrd, Eq, Clone)]
 pub enum MimeType {
+	#[default]
 	Unspecified,
-	Multipart(String),
+	Multipart,
 	TextPlain,
 	TextHtml,
 	TextJson,

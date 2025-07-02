@@ -1,7 +1,9 @@
 use std::fmt::{Debug, Display};
 use std::io::Write;
 use crate::{HTTPHeader, Url, MimeType, HTTPAttachment};
+use crate::MimeType::Multipart;
 
+#[derive(Clone)]
 pub struct HTTPRequest {
 	pub method: String,
 	pub url: Url,
@@ -9,7 +11,7 @@ pub struct HTTPRequest {
 	pub headers: Vec<HTTPHeader>,
 	pub mime_type: MimeType,
 	pub body: Vec<u8>,
-	pub attachments: Vec<HTTPAttachment>
+	pub attachments: Vec<HTTPAttachment>,
 }
 
 impl Default for HTTPRequest {
@@ -21,7 +23,7 @@ impl Default for HTTPRequest {
 			headers: Vec::default(),
 			mime_type: MimeType::Unspecified,
 			body: Vec::default(),
-			attachments: Vec::default()
+			attachments: Vec::default(),
 		}
 	}
 }
@@ -71,7 +73,7 @@ impl HTTPRequest {
 
 impl Debug for HTTPRequest {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-		writeln!(f, "| HTTP request (version={})", self.http_version)?;
+		writeln!(f, "HTTP request (version={})", self.http_version)?;
 		writeln!(f, "| method={}", self.method)?;
 		writeln!(f, "| path={}", self.url.path_raw)?;
 		writeln!(f, "| query={:?}", self.url.query_string_raw)?;
@@ -80,20 +82,20 @@ impl Debug for HTTPRequest {
 			writeln!(f, "| - [{}]: [{}]", h.name, h.value)?;
 		}
 		writeln!(f, "| mime-type={:?}", self.mime_type)?;
-		writeln!(f, "| body, length={}:", self.body.len())?;
-		if self.body.len() < 0x1000 {
-			writeln!(f, "| {:?}", String::from_utf8_lossy(self.body.as_slice()))?;
-		} else {
-			writeln!(f, "| [body too long to display]")?;
-		}
-		match &self.mime_type {
-			MimeType::Multipart(_) => {
-				writeln!(f, "| attachments:")?;
-				for attachment in &self.attachments {
-					writeln!(f, "{:?}", attachment)?;
-				}
+
+		if self.mime_type == Multipart {
+			writeln!(f, "| body - multipart")?;
+			writeln!(f, "| attachments:")?;
+			for attachment in &self.attachments {
+				writeln!(f, "{:?}", attachment)?;
 			}
-			_ => {}
+		} else {
+			writeln!(f, "| body, length={}:", self.body.len())?;
+			if self.body.len() < 0x1000 {
+				writeln!(f, "| <<{}>>", String::from_utf8_lossy(self.body.as_slice()))?;
+			} else {
+				writeln!(f, "| [body too long to display]")?;
+			}
 		}
 		writeln!(f, "| that's all.")?;
 		Ok(())

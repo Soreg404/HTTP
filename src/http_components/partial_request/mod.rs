@@ -6,312 +6,352 @@ use std::fmt::Debug;
 use std::io::BufRead;
 use std::mem::swap;
 use std::str::FromStr;
+use std::string::ParseError;
 use log::debug;
+use HTTPParseError::MalformedMessage;
+use ParseRequestPart::{AttachmentBody, AttachmentHeaders, FirstLine, RequestBody, MultipartBody, RequestHeaders};
 use crate::{HTTPAttachment, HTTPHeader, HTTPRequest, MimeType, Url};
+use crate::http_components::buffer_reader::BufferReader;
+use crate::http_components::parse_error::HTTPParseError;
+use crate::http_components::parse_error::HTTPParseError::{IllegalByte, IncompleteRequest};
+use crate::http_components::parse_error::MalformedMessageKind::Other;
+use crate::http_components::{endline, parser, validator};
+use crate::http_components::endline::{check_ends_with_new_line, strip_last_endl};
+use crate::http_components::parser::ContentDispositionHeaderValuesPartial;
+use crate::http_components::partial_request::MatchPartAction::{ChangePart, Continue, Finish};
+use crate::http_components::partial_request::ParseRequestPart::{MultipartCheckEnd, MultipartCheckStart};
 use crate::MimeType::Multipart;
 
 #[derive(PartialEq)]
-enum HTTPPart {
+enum ParseRequestPart {
 	FirstLine,
 	RequestHeaders,
-	RequestData,
-	AttachmentHeaders(usize),
-	AttachmentData,
+	RequestBody,
+	MultipartCheckStart,
+	MultipartBody,
+	AttachmentHeaders,
+	AttachmentBody,
+	MultipartCheckEnd,
 }
 
-pub struct HTTPPartialRequest {
-	part: HTTPPart,
-	parse_ended: bool,
-	internal_buffer: Vec<u8>,
-	new_line_hold: bool,
-
+#[derive(Default)]
+struct ParseSettings {
 	content_length: Option<usize>,
+	multipart_boundary: Option<String>,
+}
 
+// todo: set max buffer limit
+
+pub struct HTTPPartialRequest {
+	part: ParseRequestPart,
+	parse_ended: bool,
+	parse_error: Option<HTTPParseError>,
+	buffer: BufferReader,
+	content_start_idx: Option<usize>,
+	parse_settings: ParseSettings,
 	partially_parsed_request: HTTPRequest,
 }
 
 impl Default for HTTPPartialRequest {
 	fn default() -> Self {
 		HTTPPartialRequest {
-			part: HTTPPart::FirstLine,
+			part: FirstLine,
 			parse_ended: false,
-
-			internal_buffer: Vec::with_capacity(0x400),
-
-			new_line_hold: false,
-			content_length: None,
-
+			parse_error: None,
+			buffer: BufferReader::default(),
+			content_start_idx: None,
+			parse_settings: ParseSettings::default(),
 			partially_parsed_request: HTTPRequest::default(),
 		}
 	}
 }
 
+enum MatchPartAction {
+	Continue,
+	ChangePart(ParseRequestPart),
+	Finish,
+}
+
 impl HTTPPartialRequest {
-	pub fn push_bytes(&mut self, buffer: &[u8]) {
-		for c in buffer.iter().cloned() {
-			if self.is_complete() {
-				return;
-			}
-
-			self.internal_buffer.push(c);
-
-			if c == b'\n' {
-				self.on_new_line();
-				self.new_line_hold = true;
-			} else if c != b'\r' {
-				self.new_line_hold = false;
-			}
-
-			if self.part == HTTPPart::RequestData {
-				if self.internal_buffer.len() >= self.content_length
-					// todo: temporary, error handling of wrong or duplicate content-length
-					.clone().unwrap_or(0) {
-					swap(&mut self.partially_parsed_request.body, &mut self.internal_buffer);
-
-					// todo: temporary, attachments wip
-					self.parse_ended = true;
-				}
-			}
+	pub fn push_bytes(&mut self, data: &[u8]) -> usize {
+		if self.parse_ended {
+			// should panic?
+			return 0;
 		}
+
+		self.buffer.append(data);
+
+		let starting_head = self.buffer.get_head_idx();
+
+		while !self.parse_ended
+			&& self.buffer.advance() {
+			match self.match_part() {
+				Ok(Continue) => continue,
+				Ok(ChangePart(chang_part)) => self.part = chang_part,
+				Ok(Finish) => {
+					self.parse_ended = true;
+					break;
+				}
+				Err(e) => {
+					self.parse_ended = true;
+					self.parse_error = Some(e);
+					break;
+				}
+			};
+		}
+
+		let processed_bytes = self.buffer.get_head_idx() - starting_head;
+
+		// todo: check if body too long
+
+		processed_bytes
 	}
 
-	fn parse_request_first_line(&mut self) -> Result<(), ()> {
-		let line_str = String::from_utf8_lossy(
-			self.internal_buffer.as_slice()
-		)
-			.split_whitespace()
-			.map(|s| s.to_owned())
-			.collect::<Vec<String>>();
+	fn match_part(&mut self) -> Result<MatchPartAction, HTTPParseError> {
+		match self.part {
+			FirstLine => {
+				let first_line_bytes = match self.buffer.read_line() {
+					None => return Ok(Continue),
+					Some(line) => line,
+				};
+				let first_line = parser::parse_request_first_line(first_line_bytes)?;
+				self.partially_parsed_request.method = first_line.method;
+				self.partially_parsed_request.url = first_line.url;
+				self.partially_parsed_request.http_version = first_line.version;
 
-		if line_str.len() != 3 {
-			Err(())
-		} else {
-			self.partially_parsed_request.method = line_str.get(0).unwrap().to_owned();
-			self.partially_parsed_request.url = Url::from_str(line_str.get(1).unwrap())
-				.unwrap_or_default();
-			self.partially_parsed_request.http_version = line_str.get(2).unwrap().to_owned();
-			Ok(())
-		}
-	}
-
-	fn on_new_line(&mut self) {
-		match &self.part {
-			HTTPPart::FirstLine => {
-				if self.parse_request_first_line().is_err() {
-					self.parse_ended = true;
-					// todo: error handling
-					debug!("bad first line, todo: error handling");
-					return;
-				}
-				self.part = HTTPPart::RequestHeaders;
-				self.internal_buffer.clear();
+				Ok(ChangePart(RequestHeaders))
 			}
-			HTTPPart::RequestHeaders => {
-				if self.new_line_hold {
-					self.part = HTTPPart::RequestData;
-					self.internal_buffer.clear();
-					return;
+			RequestHeaders => {
+				let line_bytes = match self.buffer.read_line() {
+					None => return Ok(Continue),
+					Some(line) => line,
+				};
+
+				// todo: error checking, check invalid bytes
+
+				if line_bytes.is_empty() {
+
+					if self.parse_settings.content_length.unwrap_or(0) == 0 {
+						println!("request headers, empty line - finished with body length 0");
+						return Ok(Finish)
+					}
+
+					self.content_start_idx = Some(self.buffer.get_head_idx());
+
+					return Ok(ChangePart(match &self.partially_parsed_request.mime_type {
+						Multipart => MultipartCheckStart,
+						_ => RequestBody
+					}));
 				}
 
-				let current_header_line = String::from_utf8_lossy(
-					self.internal_buffer.as_slice()
-				)
-					.to_string();
-				self.internal_buffer.clear();
-
-				let header = HTTPHeader::from_str(&current_header_line)
-					.expect("some breaking changes with HTTPHeader happened,\
-							 remember to fix here");
+				let header = parser::header_from_line(line_bytes)?;
 
 				match header.name.to_lowercase().as_ref() {
 					"content-length" => {
-						self.content_length = match header.value.parse::<usize>() {
-							Ok(v) => Some(v),
-							_ => Some(0)
-						}
+						self.parse_settings.content_length =
+							match header.value.parse::<usize>() {
+								Ok(v) => Some(v),
+								_ => Some(0)
+							}
 					}
 					"content-type" => {
-						self.partially_parsed_request.mime_type =
+						let (mime, boundary) =
 							HTTPHeader::parse_content_type_value(&header.value);
+						self.partially_parsed_request.mime_type = mime;
+						self.parse_settings.multipart_boundary = boundary;
 					}
 					_ => {}
 				};
 
 				self.partially_parsed_request.headers.push(header);
+
+				Ok(Continue)
 			}
-			_ => {}
+			RequestBody => {
+				let length = self.parse_settings.content_length
+					.expect("content_length should be already set");
+
+				match self.buffer.read_exact(length) {
+					None => Ok(Continue),
+					Some(body) => {
+						self.partially_parsed_request.body = body.to_vec();
+						Ok(Finish)
+					}
+				}
+			}
+
+			MultipartCheckStart => {
+				let boundary = self.parse_settings
+					.multipart_boundary
+					.as_ref()
+					.expect("multipart_boundary should be already set");
+
+				let first_line = match self.buffer.read_line() {
+					None => return Ok(Continue),
+					Some(l) => l
+				};
+
+				println!("multipart check start, line={:?}", String::from_utf8_lossy(first_line));
+
+				if !Self::check_boundary(first_line, boundary.as_bytes()){
+					println!("multipart first line malformed");
+					Err(MalformedMessage(Other))
+				} else {
+					println!("multipart first line ok");
+					Ok(ChangePart(MultipartBody))
+				}
+			}
+			MultipartBody => {
+				let content_length = self.parse_settings.content_length
+					.expect("content_length should be already set");
+
+				let content_start_idx = self.content_start_idx
+					.expect("content_start_idx should be already set");
+
+				println!("multipart body");
+
+				if self.buffer.len() - content_start_idx > content_length {
+					println!("multipart body malformed: body length");
+					return Err(MalformedMessage(Other));
+				}
+
+				self.partially_parsed_request.attachments.push(HTTPAttachment::default());
+
+				println!("multipart body ok");
+				Ok(ChangePart(AttachmentHeaders))
+			}
+			AttachmentHeaders => {
+				let header_line = match self.buffer.read_line() {
+					None => return Ok(Continue),
+					Some(line) => line
+				};
+
+				println!("attachment headers");
+
+				if header_line.is_empty() {
+					println!("attachment headers empty line, change to attachment body");
+					return Ok(ChangePart(AttachmentBody));
+				}
+
+				let mut last_attachment =
+					self.partially_parsed_request.attachments.last_mut()
+						.expect("at least one attachment should be already added");
+
+
+				let header = parser::header_from_line(header_line)?;
+				last_attachment.headers.push(header.clone());
+
+				println!("attachment headers got header: {:?}", &header);
+
+				match header.name.to_lowercase().as_ref() {
+					"content-type" => {
+						let (mime, _) =
+							HTTPHeader::parse_content_type_value(header.value.as_str());
+						println!("attachment headers got content-type: {mime:?}");
+						last_attachment.mime_type = mime;
+					}
+					"content-disposition" => {
+						match parser::header_content_disposition_value(header.value.as_str()) {
+							None => {
+								// malformed content-disposition header - skip
+								println!("attachment headers malformed content-disposition");
+								return Ok(Continue)
+							}
+							Some(v) => {
+								println!("attachment headers got content-disposition: {v:?}");
+								last_attachment.name = v.name;
+								last_attachment.filename = v.filename;
+							}
+						}
+					}
+					_ => {}
+				}
+
+				Ok(Continue)
+			}
+			AttachmentBody => {
+				println!("attachment body branch");
+
+				let mut last_attachment =
+					self.partially_parsed_request.attachments.last_mut()
+						.expect("at least one attachment should be already added");
+
+				let boundary = self.parse_settings
+					.multipart_boundary
+					.as_ref()
+					.expect("multipart_boundary should be already set");
+
+				let boundary_leading_dashes = {
+					let mut tmp = b"--".to_vec();
+					tmp.extend_from_slice(boundary.as_bytes());
+					tmp
+				};
+
+				match self.buffer.read_until(boundary_leading_dashes.as_slice()) {
+					None => Ok(Continue),
+					Some(data) => {
+
+						if !check_ends_with_new_line(data) {
+							println!("attachment body missing a newline at end");
+							return Err(MalformedMessage(Other));
+						}
+
+						let data = strip_last_endl(data);
+
+						last_attachment.data = data.to_vec();
+
+						println!("attachment body ok, got data, length={}", data.len());
+						Ok(ChangePart(MultipartCheckEnd))
+					}
+				}
+			}
+			MultipartCheckEnd => {
+				let line = match self.buffer.read_line() {
+					None => return Ok(Continue),
+					Some(l) => l
+				};
+
+				println!("multipart check end");
+
+				if line.is_empty() {
+					Ok(ChangePart(MultipartBody))
+				} else if line.eq("--".as_bytes()) {
+					println!("multipart check end, ok - finish");
+					Ok(Finish)
+				} else {
+					println!("multipart check end, malformed");
+					Err(MalformedMessage(Other))
+				}
+			}
 		}
+	}
+
+
+	fn check_boundary(line: &[u8], boundary: &[u8]) -> bool {
+		line.starts_with(b"--")
+			&& line.get(2..).unwrap_or_default()
+			.eq(boundary)
 	}
 
 	pub fn is_complete(&self) -> bool {
 		self.parse_ended
 	}
 
-	pub fn get_complete_request(mut self) -> Option<HTTPRequest> {
+	pub fn debug_get_partially_parsed_request(&self) -> HTTPRequest {
+		self.partially_parsed_request.clone()
+	}
+
+	pub fn get_complete_request(mut self) -> Result<HTTPRequest, HTTPParseError> {
 		if !self.parse_ended {
-			return None;
+			return Err(IncompleteRequest);
 		}
-
-		match &self.partially_parsed_request.mime_type {
-			Multipart(boundary) => {
-				self.partially_parsed_request.attachments =
-					self.extract_attachments(boundary);
-			}
-			_ => {}
-		};
-
-		Some(self.partially_parsed_request)
-	}
-
-	fn extract_attachments(&self, boundary: &str) -> Vec<HTTPAttachment> {
-		let mut extracted_attachments = Vec::<HTTPAttachment>::new();
-
-		let mut is_first_boundary = true;
-		let magic_sequence = format!("\r\n--{boundary}\r\n");
-		let magic_sequence_first_time = &magic_sequence[2..];
-
-		let magic_sequence_eof = format!("\r\n--{boundary}--\r\n");
-
-		if !self.partially_parsed_request.body
-			.ends_with(magic_sequence_eof.as_bytes()) {
-			println!("body doesn't end with magic sequence - bad request/400");
-			return Vec::default();
+		if self.parse_error.is_some() {
+			return Err(self.parse_error.unwrap());
 		}
-
-		let content = &self.partially_parsed_request
-			.body[0..self.partially_parsed_request.body.len() - magic_sequence_eof.len()];
-
-		let mut current_boundary_start_index = 0;
-
-		for mut i in 0..content.len() {
-			let is_last_byte = i + 1 == content.len();
-
-			let current_magic_sequence =
-				if is_first_boundary {
-					magic_sequence_first_time.as_bytes()
-				} else {
-					magic_sequence.as_bytes()
-				};
-
-			let is_boundary = content[i..]
-				.starts_with(current_magic_sequence);
-
-			if !is_boundary && !is_last_byte {
-				continue;
-			}
-
-			if is_first_boundary {
-				is_first_boundary = false;
-			}
-
-			let current_boundary_size = i - current_boundary_start_index
-				+ if is_last_byte { 1 } else { 0 };
-
-			if current_boundary_size == 0 {
-				continue
-			}
-
-			let attachment =
-				Self::parse_attachment(&content[
-					current_boundary_start_index..
-						current_boundary_start_index + current_boundary_size]);
-
-			extracted_attachments.push(attachment);
-
-			i += current_magic_sequence.len();
-			current_boundary_start_index = i;
-		}
-
-		extracted_attachments
-	}
-
-	fn parse_attachment(text: &[u8]) -> HTTPAttachment {
-		let mut end_of_header_section = 0usize;
-		let mut local_new_line_hold = false;
-		for i in 0..text.len() {
-			if text[i] == b'\n' {
-				if local_new_line_hold {
-					end_of_header_section = i + 1;
-					break;
-				} else {
-					local_new_line_hold = true;
-				}
-			} else if text[i] != b'\r' {
-				local_new_line_hold = false;
-			}
-		}
-
-		let (headers_section, body) = text.split_at(end_of_header_section);
-
-		let mut headers = Vec::<HTTPHeader>::new();
-		let mut mime_type= MimeType::TextPlain;
-		let mut name = String::new();
-		let mut filename: Option<String> = None;
-
-		let mut lines_it = headers_section.lines();
-		while let Some(Ok(line)) = lines_it.next() {
-			if line.is_empty() {
-				break;
-			}
-			let header = HTTPHeader::from_str(line.as_str())
-				.expect("again, braking changes if this fails, remember to change this");
-
-			match header.name.to_lowercase().as_ref() {
-				"content-type" => mime_type =
-					HTTPHeader::parse_content_type_value(header.value.as_str()),
-				"content-disposition" => {
-					let mut splits = header.value.split(';');
-					match splits.next() {
-						Some(v) => {
-							if v != "form-data" {
-								continue;
-							}
-						}
-						None => continue
-					};
-
-					while let Some(key_val_part) = splits.next() {
-						let (key, value) = match key_val_part.find('=') {
-							None => (key_val_part, ""),
-							Some(index) => key_val_part.split_at(index)
-						};
-
-						let value = {
-							let no_eq_sign = &value[1..];
-							let no_starting_quote = if no_eq_sign.starts_with('"') {
-								&no_eq_sign[1..]
-							} else {
-								no_eq_sign
-							};
-							if no_starting_quote.ends_with('"') {
-								&no_starting_quote[..no_starting_quote.len()-1]
-							} else {
-								no_starting_quote
-							}
-						};
-
-						match key.trim() {
-							"name" => name = value.to_string(),
-							"filename" => filename = Some(value.to_string()),
-							_ => continue
-						};
-					}
-				}
-				_ => {}
-			}
-
-			headers.push(header);
-		};
-
-		HTTPAttachment {
-			name,
-			headers,
-			mime_type,
-			filename,
-			data: body.to_vec(),
-		}
+		Ok(self.partially_parsed_request)
 	}
 }
+
 
 impl FromStr for HTTPPartialRequest {
 	type Err = ();
