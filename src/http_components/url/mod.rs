@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::fmt::Display;
+use std::fmt::{Debug, Display, Formatter};
 use std::io::Read;
 use std::str::FromStr;
 
@@ -9,14 +9,12 @@ mod url_tests;
 
 #[derive(Default, Clone)]
 pub struct Url {
-	// [scheme]://[domain]:[port]/[path]?[query_string]#[fragment]
-	pub scheme: String,
-	pub domain: String,
-	pub port: u16,
-	pub path_raw: String,
-	pub path_parts: Vec<Vec<u8>>,
-	pub query_string_raw: String,
-	pub query_variables: HashMap<Vec<u8>, Option<Vec<u8>>>,
+	// [scheme://][domain][:port]/[path][?query_string][#fragment]
+	pub scheme: Option<String>,
+	pub domain: Option<String>,
+	pub port: Option<u16>,
+	pub path: String,
+	pub query_string: String,
 	pub fragment: String,
 }
 
@@ -45,16 +43,11 @@ impl FromStr for Url {
 			}
 		};
 
-		let path_parts = path.split('/')
-			.filter(|s| !s.is_empty())
-			.map(|s| Self::unescape(s))
-			.collect();
+		let path = path.strip_suffix('/').unwrap_or(path);
 
 		Ok(Self {
-			path_raw: path.to_owned(),
-			path_parts,
-			query_string_raw: query_str.to_owned(),
-			query_variables: Self::parse_query_string(query_str),
+			path: path.to_owned(),
+			query_string: query_str.to_owned(),
 			fragment: fragment_pos.to_owned(),
 			..Self::default()
 		})
@@ -62,7 +55,7 @@ impl FromStr for Url {
 }
 
 impl Url {
-	pub fn unescape(text: &str) -> Vec<u8> {
+	pub fn decode(text: &str) -> Vec<u8> {
 		let mut result_vec = Vec::<u8>::new();
 		let mut in_escape = false;
 		let mut escape_second_char = false;
@@ -102,7 +95,7 @@ impl Url {
 		}
 		result_vec
 	}
-	pub fn escape(data: &Vec<u8>) -> String {
+	pub fn encode(data: &[u8]) -> String {
 		// TODO: new lines encoded as CRLF
 		let mut ret = String::with_capacity((data.len() as f32 * 1.6) as usize);
 
@@ -128,15 +121,26 @@ impl Url {
 		for field in fields {
 			let eq_find = field.find('=');
 			if eq_find.is_none() {
-				let field = Self::unescape(field);
+				let field = Self::decode(field);
 				ret.insert(field, None);
 			} else {
 				let (key, val) = field.split_at(eq_find.unwrap());
-				ret.insert(Self::unescape(key), Some(Self::unescape(&val[1..])));
+				ret.insert(Self::decode(key), Some(Self::decode(&val[1..])));
 			}
 		}
 		ret
 	}
+
+	pub fn get_request_target(&self) -> String {
+		let mut result = String::from("/");
+		result.push_str(&self.path);
+		if !self.query_string.is_empty() {
+			result.push('?');
+			result.push_str(&self.query_string);
+		}
+		result
+	}
+
 	pub fn from_absolute(line: &str) -> Url {
 		// scheme://host/path
 		unimplemented!()
@@ -150,6 +154,40 @@ impl Url {
 
 impl Display for Url {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		unimplemented!()
+		if self.scheme.is_some() {
+			write!(f, "{}://", self.scheme.as_ref().unwrap())?;
+		}
+		if self.domain.is_some() {
+			write!(f, "{}", self.domain.as_ref().unwrap())?;
+		}
+		if self.port.is_some() {
+			write!(f, ":{}", self.port.as_ref().unwrap())?;
+		}
+
+		write!(f, "/{}", self.path.as_str())?;
+
+		if !self.query_string.is_empty() {
+			write!(f, "?{}", self.query_string.as_str())?;
+		}
+		if !self.fragment.is_empty() {
+			write!(f, "?{}", self.fragment.as_str())?;
+		}
+
+		Ok(())
+	}
+}
+
+impl Debug for Url {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		write!(
+			f,
+			"<URL:[{}]://[{}]:[{}]/{}[?{}][#{}]>",
+			self.scheme.as_ref().unwrap_or_default(),
+			self.domain.as_ref().unwrap_or_default(),
+			self.port.unwrap_or_default(),
+			self.path,
+			self.query_string,
+			self.fragment
+		)
 	}
 }

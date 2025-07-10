@@ -11,6 +11,9 @@ pub struct HTTPResponse {
 	pub headers: Vec<HTTPHeader>,
 	pub body: Vec<u8>,
 }
+
+
+
 impl Default for HTTPResponse {
 	fn default() -> Self {
 		Self {

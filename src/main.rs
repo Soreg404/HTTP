@@ -156,7 +156,7 @@ fn handle_connection(
 }
 
 fn create_response(req: &HTTPRequest) -> HTTPResponse {
-	let response = match req.url.path_raw.as_str() {
+	let response = match req.url.path.as_str() {
 		"/file-form" => {
 			match std::fs::read_to_string("html/file-form.html") {
 				Ok(html) => {

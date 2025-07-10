@@ -12,3 +12,6 @@ mod endline;
 mod buffer_reader;
 mod parser;
 mod validator;
+mod message;
+mod partial_message;
+mod message_info;

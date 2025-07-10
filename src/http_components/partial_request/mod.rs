@@ -326,7 +326,6 @@ impl HTTPPartialRequest {
 		}
 	}
 
-
 	fn check_boundary(line: &[u8], boundary: &[u8]) -> bool {
 		line.starts_with(b"--")
 			&& line.get(2..).unwrap_or_default()

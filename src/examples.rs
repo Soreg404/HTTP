@@ -35,8 +35,8 @@ fn example(which: fn(), title: &str) {
 fn example_compose_request() {
 	let mut req = http::HTTPRequest::default();
 	req.method = String::from("POST");
-	req.url.path_raw = String::from("/api/get-list");
-	req.url.query_string_raw = String::from("hello=world");
+	req.url.path = String::from("/api/get-list");
+	req.url.query_string = String::from("hello=world");
 	req.headers.push(http::HTTPHeader {
 		name: String::from("host"),
 		value: String::from("localhost"),

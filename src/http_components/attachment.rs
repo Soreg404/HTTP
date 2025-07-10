@@ -3,11 +3,11 @@ use crate::{HTTPHeader, MimeType};
 
 #[derive(Default, Clone)]
 pub struct HTTPAttachment {
-	pub name: String,
 	pub headers: Vec<HTTPHeader>,
 	pub mime_type: MimeType,
+	pub name: String,
 	pub filename: Option<String>,
-	pub data: Vec<u8>,
+	pub body: Vec<u8>,
 }
 
 impl Debug for HTTPAttachment {
@@ -18,11 +18,11 @@ impl Debug for HTTPAttachment {
 			self.name,
 			self.mime_type,
 			self.filename,
-			self.data.len()
+			self.body.len()
 		)?;
 
-		if self.data.len() < 100 {
-			writeln!(f, "data: <<{}>>", String::from_utf8_lossy(&self.data))?;
+		if self.body.len() < 100 {
+			writeln!(f, "data: <<{}>>", String::from_utf8_lossy(&self.body))?;
 		} else {
 			writeln!(f, "[data too long to display]")?;
 		}
