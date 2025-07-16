@@ -3,7 +3,9 @@ use std::fs::File;
 use std::io::{stdout, BufRead, Read, Write};
 use std::net::{Shutdown, SocketAddr};
 use std::path::Path;
-use http::{HTTPHeader, HTTPPartialRequest, HTTPRequest, HTTPResponse};
+
+mod proto;
+use proto::*;
 
 mod examples;
 

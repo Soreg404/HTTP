@@ -4,7 +4,6 @@ use std::io::Read;
 use std::str::FromStr;
 
 #[cfg(test)]
-#[path = "./url_tests.rs"]
 mod url_tests;
 
 #[derive(Default, Clone)]
