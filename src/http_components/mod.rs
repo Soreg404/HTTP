@@ -14,4 +14,4 @@ mod parser;
 mod validator;
 mod message;
 mod partial_message;
-mod message_info;
+mod parser_parts;

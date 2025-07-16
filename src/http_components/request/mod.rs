@@ -9,6 +9,7 @@ use crate::MimeType::Multipart;
 pub struct HTTPRequest {
 	pub method: String,
 	pub url: Url,
+
 	pub message: HTTPMessage,
 }
 
@@ -49,26 +50,26 @@ impl HTTPRequest {
 
 impl Debug for HTTPRequest {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-		writeln!(f, "HTTP request (version={})", self.http_version)?;
+		writeln!(f, "HTTP request (version={})", self.message.http_version)?;
 		writeln!(f, "| method={}", self.method)?;
 		writeln!(f, "| path={}", self.url.path)?;
 		writeln!(f, "| query={:?}", self.url.query_string)?;
 		writeln!(f, "| headers:")?;
-		for h in &self.headers {
+		for h in &self.message.headers {
 			writeln!(f, "| - [{}]: [{}]", h.name, h.value)?;
 		}
-		writeln!(f, "| mime-type={:?}", self.mime_type)?;
+		writeln!(f, "| mime-type={:?}", self.message.mime_type)?;
 
-		if self.mime_type == Multipart {
+		if self.message.mime_type == Multipart {
 			writeln!(f, "| body - multipart")?;
 			writeln!(f, "| attachments:")?;
-			for attachment in &self.attachments {
+			for attachment in &self.message.attachments {
 				writeln!(f, "{:?}", attachment)?;
 			}
 		} else {
-			writeln!(f, "| body, length={}:", self.body.len())?;
-			if self.body.len() < 0x1000 {
-				writeln!(f, "| <<{}>>", String::from_utf8_lossy(self.body.as_slice()))?;
+			writeln!(f, "| body, length={}:", self.message.body.len())?;
+			if self.message.body.len() < 0x1000 {
+				writeln!(f, "| <<{}>>", String::from_utf8_lossy(self.message.body.as_slice()))?;
 			} else {
 				writeln!(f, "| [body too long to display]")?;
 			}

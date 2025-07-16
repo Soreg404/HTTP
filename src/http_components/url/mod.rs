@@ -182,8 +182,8 @@ impl Debug for Url {
 		write!(
 			f,
 			"<URL:[{}]://[{}]:[{}]/{}[?{}][#{}]>",
-			self.scheme.as_ref().unwrap_or_default(),
-			self.domain.as_ref().unwrap_or_default(),
+			self.scheme.as_ref().map(|s| s.as_str()).unwrap_or(""),
+			self.domain.as_ref().map(|s| s.as_str()).unwrap_or(""),
 			self.port.unwrap_or_default(),
 			self.path,
 			self.query_string,

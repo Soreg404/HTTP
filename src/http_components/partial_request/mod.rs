@@ -18,6 +18,7 @@ use crate::http_components::parse_error::MalformedMessageKind::Other;
 use crate::http_components::{endline, parser, validator};
 use crate::http_components::endline::{check_ends_with_new_line, strip_last_endl};
 use crate::http_components::parser::ContentDispositionHeaderValuesPartial;
+use crate::http_components::partial_message::PartialMessage;
 use crate::http_components::partial_request::MatchPartAction::{ChangePart, Continue, Finish};
 use crate::http_components::partial_request::ParseRequestPart::{MultipartCheckEnd, MultipartCheckStart};
 use crate::MimeType::Multipart;
@@ -34,57 +35,50 @@ enum ParseRequestPart {
 	MultipartCheckEnd,
 }
 
-#[derive(Default)]
-struct ParseSettings {
-	content_length: Option<usize>,
-	multipart_boundary: Option<String>,
-}
-
-// todo: set max buffer limit
 
 pub struct HTTPPartialRequest {
-	part: ParseRequestPart,
+	inner_buffer: BufferReader,
+
 	parse_ended: bool,
 	parse_error: Option<HTTPParseError>,
-	buffer: BufferReader,
-	content_start_idx: Option<usize>,
-	parse_settings: ParseSettings,
-	partially_parsed_request: HTTPRequest,
+
+	method: String,
+	url: Url,
+
+	partial_message: PartialMessage,
 }
 
 impl Default for HTTPPartialRequest {
 	fn default() -> Self {
 		HTTPPartialRequest {
-			part: FirstLine,
-			parse_ended: false,
-			parse_error: None,
-			buffer: BufferReader::default(),
-			content_start_idx: None,
-			parse_settings: ParseSettings::default(),
-			partially_parsed_request: HTTPRequest::default(),
+			..Self::default()
 		}
 	}
 }
 
-enum MatchPartAction {
-	Continue,
-	ChangePart(ParseRequestPart),
-	Finish,
-}
 
 impl HTTPPartialRequest {
 	pub fn push_bytes(&mut self, data: &[u8]) -> usize {
 		if self.parse_ended {
-			// should panic?
-			return 0;
+			todo!()
 		}
 
-		self.buffer.append(data);
+		self.inner_buffer.append(data);
+		let starting_head = self.inner_buffer.get_head_idx();
 
-		let starting_head = self.buffer.get_head_idx();
+		self.process_buffer();
 
+		let processed_bytes = self.inner_buffer.get_head_idx() - starting_head;
+
+		// todo: check if body too long
+
+		processed_bytes
+	}
+
+
+	fn a() {
 		while !self.parse_ended
-			&& self.buffer.advance() {
+			&& self.inner_buffer.advance() {
 			match self.match_part() {
 				Ok(Continue) => continue,
 				Ok(ChangePart(chang_part)) => self.part = chang_part,
@@ -99,30 +93,24 @@ impl HTTPPartialRequest {
 				}
 			};
 		}
-
-		let processed_bytes = self.buffer.get_head_idx() - starting_head;
-
-		// todo: check if body too long
-
-		processed_bytes
 	}
 
 	fn match_part(&mut self) -> Result<MatchPartAction, HTTPParseError> {
 		match self.part {
 			FirstLine => {
-				let first_line_bytes = match self.buffer.read_line() {
+				let first_line_bytes = match self.inner_buffer.read_line() {
 					None => return Ok(Continue),
 					Some(line) => line,
 				};
 				let first_line = parser::parse_request_first_line(first_line_bytes)?;
 				self.partially_parsed_request.method = first_line.method;
 				self.partially_parsed_request.url = first_line.url;
-				self.partially_parsed_request.http_version = first_line.version;
+				self.partially_parsed_request.message.http_version = first_line.version;
 
 				Ok(ChangePart(RequestHeaders))
 			}
 			RequestHeaders => {
-				let line_bytes = match self.buffer.read_line() {
+				let line_bytes = match self.inner_buffer.read_line() {
 					None => return Ok(Continue),
 					Some(line) => line,
 				};
@@ -130,15 +118,14 @@ impl HTTPPartialRequest {
 				// todo: error checking, check invalid bytes
 
 				if line_bytes.is_empty() {
-
 					if self.parse_settings.content_length.unwrap_or(0) == 0 {
 						println!("request headers, empty line - finished with body length 0");
-						return Ok(Finish)
+						return Ok(Finish);
 					}
 
-					self.content_start_idx = Some(self.buffer.get_head_idx());
+					self.content_start_idx = Some(self.inner_buffer.get_head_idx());
 
-					return Ok(ChangePart(match &self.partially_parsed_request.mime_type {
+					return Ok(ChangePart(match &self.partially_parsed_request.message.mime_type {
 						Multipart => MultipartCheckStart,
 						_ => RequestBody
 					}));
@@ -157,13 +144,13 @@ impl HTTPPartialRequest {
 					"content-type" => {
 						let (mime, boundary) =
 							HTTPHeader::parse_content_type_value(&header.value);
-						self.partially_parsed_request.mime_type = mime;
+						self.partially_parsed_request.message.mime_type = mime;
 						self.parse_settings.multipart_boundary = boundary;
 					}
 					_ => {}
 				};
 
-				self.partially_parsed_request.headers.push(header);
+				self.partially_parsed_request.message.headers.push(header);
 
 				Ok(Continue)
 			}
@@ -171,7 +158,7 @@ impl HTTPPartialRequest {
 				let length = self.parse_settings.content_length
 					.expect("content_length should be already set");
 
-				match self.buffer.read_exact(length) {
+				match self.inner_buffer.read_exact(length) {
 					None => Ok(Continue),
 					Some(body) => {
 						self.partially_parsed_request.body = body.to_vec();
@@ -186,14 +173,14 @@ impl HTTPPartialRequest {
 					.as_ref()
 					.expect("multipart_boundary should be already set");
 
-				let first_line = match self.buffer.read_line() {
+				let first_line = match self.inner_buffer.read_line() {
 					None => return Ok(Continue),
 					Some(l) => l
 				};
 
 				println!("multipart check start, line={:?}", String::from_utf8_lossy(first_line));
 
-				if !Self::check_boundary(first_line, boundary.as_bytes()){
+				if !Self::check_boundary(first_line, boundary.as_bytes()) {
 					println!("multipart first line malformed");
 					Err(MalformedMessage(Other))
 				} else {
@@ -210,7 +197,7 @@ impl HTTPPartialRequest {
 
 				println!("multipart body");
 
-				if self.buffer.len() - content_start_idx > content_length {
+				if self.inner_buffer.len() - content_start_idx > content_length {
 					println!("multipart body malformed: body length");
 					return Err(MalformedMessage(Other));
 				}
@@ -221,7 +208,7 @@ impl HTTPPartialRequest {
 				Ok(ChangePart(AttachmentHeaders))
 			}
 			AttachmentHeaders => {
-				let header_line = match self.buffer.read_line() {
+				let header_line = match self.inner_buffer.read_line() {
 					None => return Ok(Continue),
 					Some(line) => line
 				};
@@ -255,7 +242,7 @@ impl HTTPPartialRequest {
 							None => {
 								// malformed content-disposition header - skip
 								println!("attachment headers malformed content-disposition");
-								return Ok(Continue)
+								return Ok(Continue);
 							}
 							Some(v) => {
 								println!("attachment headers got content-disposition: {v:?}");
@@ -287,10 +274,9 @@ impl HTTPPartialRequest {
 					tmp
 				};
 
-				match self.buffer.read_until(boundary_leading_dashes.as_slice()) {
+				match self.inner_buffer.read_until(boundary_leading_dashes.as_slice()) {
 					None => Ok(Continue),
 					Some(data) => {
-
 						if !check_ends_with_new_line(data) {
 							println!("attachment body missing a newline at end");
 							return Err(MalformedMessage(Other));
@@ -306,7 +292,7 @@ impl HTTPPartialRequest {
 				}
 			}
 			MultipartCheckEnd => {
-				let line = match self.buffer.read_line() {
+				let line = match self.inner_buffer.read_line() {
 					None => return Ok(Continue),
 					Some(l) => l
 				};
