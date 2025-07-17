@@ -4,13 +4,13 @@ pub fn run_examples() {
 
 	blue("\n# examples\n");
 
-	example(example_compose_request, "compose / create a POST request");
-
-	example(example_compose_response, "compose / create a response");
-
-	example(example_quick_response, "quick response");
-
-	example(example_read_request, "read request");
+	// example(example_compose_request, "compose / create a POST request");
+	//
+	// example(example_compose_response, "compose / create a response");
+	//
+	// example(example_quick_response, "quick response");
+	//
+	// example(example_read_request, "read request");
 }
 
 fn green(text: &str) {
@@ -32,6 +32,7 @@ fn example(which: fn(), title: &str) {
 	println!()
 }
 
+#[cfg(disable)]
 fn example_compose_request() {
 	let mut req = http::HTTPRequest::default();
 	req.method = String::from("POST");
@@ -53,6 +54,7 @@ fn example_compose_request() {
 	println!("{req}");
 }
 
+#[cfg(disable)]
 fn example_compose_response() {
 	let mut res = http::HTTPResponse::default();
 	res.status = 200;
@@ -69,6 +71,7 @@ fn example_compose_response() {
 	println!("{res}");
 }
 
+#[cfg(disable)]
 fn example_quick_response() {
 	println!("created with ..default: {}", http::HTTPResponse {
 		status: 418,
@@ -78,6 +81,7 @@ fn example_quick_response() {
 	println!("created with quick: {}", http::HTTPResponse::quick(404));
 }
 
+#[cfg(disable)]
 fn example_read_request() {
 	let mut p_req = http::HTTPPartialRequest::default();
 

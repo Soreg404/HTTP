@@ -12,7 +12,7 @@ enum ReadState {
 
 use std::ops::Add;
 use ReadState::*;
-use crate::http_components::endline;
+use crate::proto::internal::endline;
 
 #[derive(Default)]
 pub struct BufferReader {
@@ -132,6 +132,10 @@ impl BufferReader {
 	pub fn read_exact(&mut self, size: usize) -> Option<&[u8]> {
 		match self.read_state {
 			Ready => {
+				if size == 0 {
+					return Some(&[])
+				}
+
 				self.read_start = self.read_head;
 				self.read_state = ReadExact(size);
 				None
@@ -283,6 +287,14 @@ mod tests {
 				   "trying to read all bytes until the '====' boundary");
 		assert_eq!(buffer.read_state, Ready);
 		assert_eq!(buffer.read_head, 35, "head is after the end of the boundary");
+	}
+
+	#[test]
+	fn read_exact_zero() {
+		let mut buffer = BufferReader::default();
+		buffer.append(b"1234567890");
+		assert_eq!(buffer.read_exact(0), Some(b"".as_slice()));
+		assert_eq!(buffer.read_head, 0);
 	}
 
 	#[test]

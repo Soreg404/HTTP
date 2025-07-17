@@ -1,7 +1,10 @@
 use std::str::FromStr;
-use crate::MimeType;
+use crate::proto::internal::parser;
+use crate::proto::mime_type::MimeType;
+use crate::proto::parse_error::HTTPParseError::MalformedMessage;
+use crate::proto::parse_error::{HTTPParseError, MalformedMessageKind};
 
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Debug, Eq, PartialEq, Default, Clone)]
 pub struct HTTPHeader {
 	pub name: String,
 	pub value: String,
@@ -17,7 +20,7 @@ impl HTTPHeader {
 }
 
 impl FromStr for HTTPHeader {
-	type Err = ();
+	type Err = HTTPParseError;
 
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
 		Ok(
@@ -35,52 +38,100 @@ impl FromStr for HTTPHeader {
 	}
 }
 
+#[derive(Debug, Eq, PartialEq)]
+pub struct FormDataFields {
+	pub name: String,
+	pub filename: Option<String>,
+}
 
-/**
- * temporary, until no better solution
- */
-impl HTTPHeader {
-	pub fn parse_content_type_value(value: &str)
-		-> (MimeType, Option<String>) {
-		let mut splits = value.split(';');
+#[derive(Debug, Eq, PartialEq)]
+pub enum HTTPHeaderEnum {
+	Other,
+	ContentLength(usize),
+	ContentType(MimeType),
+	ContentDispositionFormData(FormDataFields),
+}
 
-		let first_part = match splits.next() {
-			None => {
-				return (MimeType::Unspecified, None);
+impl HTTPHeaderEnum {
+	pub fn from_header(header: &HTTPHeader) -> Result<Self, HTTPParseError> {
+		match header.name.to_lowercase().as_str() {
+			"content-length" => {
+				match header.value.parse::<usize>() {
+					Ok(v) => Ok(HTTPHeaderEnum::ContentLength(v)),
+					Err(e) => Err(
+						HTTPParseError::MalformedMessage(
+							MalformedMessageKind::Other
+						)
+					)
+				}
 			}
-			Some(first_part) => {
-				first_part.trim().to_lowercase()
-			}
-		};
+			"content-type" => {
+				let mut split_args = header.value.split(';');
 
-		if first_part != "multipart/form-data" {
-			return match first_part.as_str() {
-				"text/plain" => (MimeType::TextPlain, None),
-				"text/html" => (MimeType::TextHtml, None),
-				"application/json" | "text/json" => (MimeType::TextJson, None),
-				"image/jpeg" => (MimeType::ImageJpg, None),
-				"image/png" => (MimeType::ImagePng, None),
-				_ => (MimeType::Unspecified, None),
-			};
+				let media_type = split_args.next().unwrap_or_default();
+
+				Ok(HTTPHeaderEnum::ContentType(
+					match media_type {
+						"text/plain" => MimeType::TextPlain,
+						"text/html" => MimeType::TextHtml,
+						"application/json" | "text/json" => MimeType::TextJson,
+						"image/jpeg" => MimeType::ImageJpg,
+						"image/png" => MimeType::ImagePng,
+						"multipart/form-data" => {
+							// todo: parse HTTP Header value parameters generally
+							match split_args.next() {
+								None => return Err(
+									HTTPParseError::MalformedMessage(
+										MalformedMessageKind::MimetypeMissingBoundaryParam
+									)
+								),
+								Some(param) => {
+									match param.find('=') {
+										None => return Err(
+											HTTPParseError::MalformedMessage(
+												MalformedMessageKind
+												::MimetypeParamMissingEqualSign
+											)
+										),
+										Some(pos) => {
+											MimeType::Multipart(
+												param[pos + 1..].trim().to_string()
+											)
+										}
+									}
+								}
+							}
+						}
+						_ => MimeType::Unspecified
+					}
+				))
+			},
+			"content-disposition" => {
+				match parser::header_content_disposition_value(header.value.as_str()) {
+					None => {
+						Err(MalformedMessage(
+							MalformedMessageKind::HeaderContentDisposition
+						))
+					}
+					Some(v) => {
+						Ok(HTTPHeaderEnum::ContentDispositionFormData(
+							FormDataFields {
+								name: v.name,
+								filename: v.filename,
+							}
+						))
+					}
+				}
+			}
+			_ => Ok(HTTPHeaderEnum::Other),
 		}
-
-		let boundary_arg = match splits.next() {
-			None => return (MimeType::Unspecified, None),
-			Some(s) => s.trim().to_string()
-		};
-
-		let boundary_value = match boundary_arg.split('=').nth(1) {
-			None => return (MimeType::Unspecified, None),
-			Some(v) => v.to_string()
-		};
-
-		(MimeType::Multipart, Some(boundary_value))
 	}
 }
 
 
 #[cfg(test)]
 mod tests {
+	use crate::proto::mime_type::MimeType;
 	use super::*;
 
 	#[test]
@@ -129,5 +180,20 @@ mod tests {
 			Ok(HTTPHeader::default()),
 			"badly formatted header"
 		);
+	}
+
+	#[test]
+	fn match_content_type_multipart_header() {
+		let header = HTTPHeader {
+			name: String::from("content-type"),
+			value: String::from("multipart/form-data; boundary=test")
+		};
+
+		assert_eq!(
+			HTTPHeaderEnum::from_header(&header),
+			Ok(HTTPHeaderEnum::ContentType(MimeType::Multipart(String::from("test")))),
+			"simple boundary mime type param"
+		);
+
 	}
 }

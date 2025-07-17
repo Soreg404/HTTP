@@ -1,15 +1,14 @@
 use std::fmt::{Debug, Display};
 use std::io::Write;
-use crate::{HTTPHeader, Url, MimeType, HTTPAttachment};
-use crate::http_components::message::HTTPMessage;
-use crate::MimeType::Multipart;
-
+use crate::proto::attachment::HTTPAttachment;
+use crate::proto::message::HTTPMessage;
+use crate::proto::mime_type::MimeType::Multipart;
+use crate::proto::Url;
 
 #[derive(Clone)]
 pub struct HTTPRequest {
 	pub method: String,
 	pub url: Url,
-
 	pub message: HTTPMessage,
 }
 
@@ -17,8 +16,8 @@ impl Default for HTTPRequest {
 	fn default() -> Self {
 		Self {
 			method: String::from("GET"),
-			url: Url::default(),
-			message: HTTPMessage::default(),
+			url: Default::default(),
+			message: Default::default()
 		}
 	}
 }
@@ -60,20 +59,24 @@ impl Debug for HTTPRequest {
 		}
 		writeln!(f, "| mime-type={:?}", self.message.mime_type)?;
 
-		if self.message.mime_type == Multipart {
-			writeln!(f, "| body - multipart")?;
-			writeln!(f, "| attachments:")?;
-			for attachment in &self.message.attachments {
-				writeln!(f, "{:?}", attachment)?;
+		match self.message.mime_type {
+			Multipart(_) => {
+				writeln!(f, "| body - multipart")?;
+				writeln!(f, "| attachments:")?;
+				for attachment in &self.message.attachments {
+					writeln!(f, "{:?}", attachment)?;
+				}
 			}
-		} else {
-			writeln!(f, "| body, length={}:", self.message.body.len())?;
-			if self.message.body.len() < 0x1000 {
-				writeln!(f, "| <<{}>>", String::from_utf8_lossy(self.message.body.as_slice()))?;
-			} else {
-				writeln!(f, "| [body too long to display]")?;
+			_=> {
+				writeln!(f, "| body, length={}:", self.message.body.len())?;
+				if self.message.body.len() < 0x1000 {
+					writeln!(f, "| <<{}>>", String::from_utf8_lossy(self.message.body.as_slice()))?;
+				} else {
+					writeln!(f, "| [body too long to display]")?;
+				}
 			}
 		}
+
 		writeln!(f, "| that's all.")?;
 		Ok(())
 	}

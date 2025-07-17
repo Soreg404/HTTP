@@ -1,11 +1,8 @@
 use std::str::FromStr;
-use http::HTTPParseError;
-use crate::http_components::parse_error::HTTPParseError;
-use crate::http_components::parse_error::HTTPParseError::{IllegalByte, MalformedMessage};
-use crate::http_components::validator::ascii_to_string;
-use crate::{HTTPHeader, Url};
-use crate::http_components::parse_error::MalformedMessageKind::Other;
-use crate::http_components::validator;
+use crate::proto::header::HTTPHeader;
+use crate::proto::parse_error::{HTTPParseError, MalformedMessageKind};
+use crate::proto::parse_error::HTTPParseError::{IllegalByte, MalformedMessage};
+use crate::proto::Url;
 
 pub struct FirstLineRequest {
 	pub method: String,
@@ -14,7 +11,35 @@ pub struct FirstLineRequest {
 }
 
 pub fn get_first_line_request(line: &[u8]) -> Result<FirstLineRequest, HTTPParseError> {
+	let line = validate_http_line_bytes(line)?;
 
+	let line_parts = line
+		.split_whitespace()
+		.map(|s| s.to_owned())
+		.collect::<Vec<String>>();
+
+	if line_parts.len() != 3 {
+		return Err(MalformedMessage(MalformedMessageKind::FirstLine));
+	}
+
+	let method = line_parts.get(0).unwrap().to_owned();
+	// todo: check method validity
+
+	let url = match Url::from_str(line_parts.get(1).unwrap()) {
+		Ok(v) => v,
+		Err(e) => {
+			return Err(MalformedMessage(MalformedMessageKind::UrlGeneral))
+		}
+	};
+
+	let version = line_parts.get(2).unwrap().to_owned();
+	// todo: check version
+
+	Ok(FirstLineRequest {
+		method,
+		url,
+		version,
+	})
 }
 
 pub struct FirstLineResponse {
@@ -23,11 +48,40 @@ pub struct FirstLineResponse {
 	pub status_text: String,
 }
 pub fn get_first_line_response(line: &[u8]) -> Result<FirstLineResponse, HTTPParseError> {
+	let line = validate_http_line_bytes(line)?;
 
+	let line_parts = line
+		.split_whitespace()
+		.map(|s| s.to_owned())
+		.collect::<Vec<String>>();
+
+	if line_parts.len() < 3 {
+		return Err(MalformedMessage(MalformedMessageKind::FirstLine));
+	}
+
+	let version = line_parts.get(0).unwrap().to_owned();
+	// todo: check version
+
+	let status_code = match line_parts.get(1).unwrap()
+		.parse::<u16>() {
+		Ok(v) => v,
+		Err(e) => return Err(MalformedMessage(
+			MalformedMessageKind::FirstLineStatusCode
+		)),
+	};
+	// todo: check method validity
+
+	let status_text = line_parts[2..].join(" ");
+
+	Ok(FirstLineResponse {
+		version,
+		status_code,
+		status_text,
+	})
 }
 
 
-
+#[cfg(delete)]
 pub fn parse_request_first_line(line_bytes: &[u8]) -> Result<RequestFirstLine, HTTPParseError> {
 	let line = validator::ascii_to_string(line_bytes)?;
 
@@ -61,15 +115,22 @@ pub fn parse_request_first_line(line_bytes: &[u8]) -> Result<RequestFirstLine, H
 	}
 }
 
-pub fn header_from_line(line_bytes: &[u8]) -> Result<HTTPHeader, HTTPParseError> {
-	// maybe better to check_line_validity before to_string?
+fn validate_http_line_bytes(line_bytes: &[u8]) -> Result<&str, HTTPParseError> {
+	for b in line_bytes.iter().cloned() {
+		if !b.is_ascii_graphic() && b != b' ' {
+			return Err(IllegalByte);
+		}
+	}
+	Ok(
+		unsafe { str::from_utf8_unchecked(line_bytes) }
+	)
+}
 
-	let current_header_line_string = ascii_to_string(&line_bytes)?;
+pub fn header_from_line_bytes(line_bytes: &[u8]) -> Result<HTTPHeader, HTTPParseError> {
+	let line = validate_http_line_bytes(line_bytes)?;
 
 	Ok(
-		HTTPHeader::from_str(
-			current_header_line_string.as_str()
-		)
+		HTTPHeader::from_str(line)
 			.expect("from_str currently can't return Err, \
 						if it does then some breaking changes with HTTPHeader happened,\
 							 remember to fix here")

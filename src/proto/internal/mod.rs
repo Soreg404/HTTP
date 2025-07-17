@@ -1,5 +1,6 @@
 pub mod message;
-pub mod parser_message;
+pub mod parser;
+pub mod message_parser;
 
 mod buffer_reader;
-mod parser;
+mod endline;

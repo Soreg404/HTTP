@@ -1,9 +1,9 @@
 use std::io::Write;
-use crate::{HTTPAttachment, HTTPHeader, MimeType};
+use crate::proto::attachment::HTTPAttachment;
+use crate::proto::header::HTTPHeader;
+use crate::proto::mime_type::MimeType;
 
-mod message_info;
-
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct HTTPMessage {
 	pub http_version: String,
 	pub headers: Vec<HTTPHeader>,

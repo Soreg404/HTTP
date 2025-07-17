@@ -4,7 +4,7 @@ use std::fmt::{Debug};
 pub enum MimeType {
 	#[default]
 	Unspecified,
-	Multipart,
+	Multipart(String),
 	TextPlain,
 	TextHtml,
 	TextJson,

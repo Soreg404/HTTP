@@ -3,9 +3,13 @@ use std::fs::File;
 use std::io::{stdout, BufRead, Read, Write};
 use std::net::{Shutdown, SocketAddr};
 use std::path::Path;
-
-mod proto;
-use proto::*;
+use std::str::FromStr;
+use http::proto::header::HTTPHeader;
+use http::proto::message::HTTPMessage;
+use http::proto::message_parser::MessageParser;
+use http::proto::request::HTTPRequest;
+use http::proto::response::HTTPResponse;
+use http::proto::Url;
 
 mod examples;
 
@@ -35,32 +39,48 @@ impl Log {
 }
 
 fn main() {
-	examples::run_examples();
+	// examples::run_examples();
 
-	let server_thread_handle = std::thread::spawn(start_sample_server);
+	// let server_thread_handle = std::thread::spawn(start_sample_server);
 
-	// test_collect_response();
+	test_collect_response();
 
-	println!("main finished, waiting for server thread to join in.");
-	server_thread_handle.join().unwrap();
+	// println!("main finished, waiting for server thread to join in.");
+	// server_thread_handle.join().unwrap();
+
+	// start_sample_server();
 }
 
 fn test_collect_response() {
-	let mut con = std::net::TcpStream::connect("example.com:80").unwrap();
+	println!("connecting");
+	let mut con = std::net::TcpStream::connect("127.0.0.1:80").unwrap();
 	println!("{con:?}");
 	let mut req = HTTPRequest::default();
 	req.method = String::from("GET");
-	// req.url = ;
-	req.headers = vec![
-		HTTPHeader::new("host".into(), "example.com".into()),
+	req.url = Url::from_str("/dashboard/images/favicon.png").unwrap();
+	req.message.headers = vec![
+		HTTPHeader::new("host".into(), "localhost".into()),
 	];
+	println!("{req}");
 	let req_bytes = req.to_bytes();
-	println!("{:?}", &req_bytes);
 	con.write_all(&req_bytes).unwrap();
 
-	// let mut response_collector = HTTPPartialRe::default();
-	// let mut buffer = [0u8; 0x400];
-	// while !response_collector.
+	println!("new message collector");
+	let mut response_collector = MessageParser::new_response();
+	let mut buffer = [0u8; 0x400];
+	while !response_collector.is_complete() {
+		let len = con.read(&mut buffer).unwrap();
+
+		println!("push {len}");
+		response_collector.push_bytes(&buffer[..len]);
+	}
+
+	println!("convert");
+	let response = response_collector.into_response();
+
+	println!("GOT RESPONSE:\n\n{response}");
+
+	std::fs::write("favicon.png", response.message.body).unwrap()
 
 }
 
@@ -94,8 +114,12 @@ fn handle_connection(
 	peer: &SocketAddr,
 	log: &mut Log,
 ) {
-	let mut req = http::HTTPPartialRequest::default();
+	println!("handling connection from {peer}");
 	log.write(format!("handling connection from {peer}\n").as_bytes());
+
+	let mut req = MessageParser::new_request();
+
+	// let mut req = http::HTTPPartialRequest::default();
 
 	log.write("collecting request...\n<<<<<<<".as_bytes());
 	let mut buffer = [0; 0x400];
@@ -113,20 +137,21 @@ fn handle_connection(
 	}
 	log.write(">>>>>>>\ndone collecting request\n".as_bytes());
 
-	println!("debug partially parsed request: {}",
-			 req.debug_get_partially_parsed_request());
+	// println!("debug partially parsed request: {}",
+	// 		 req.debug_get_partially_parsed_request());
 
-	let req = match req.get_complete_request() {
-		Ok(r) => r,
-		Err(e) => {
-			println!("partial request error: {e:?}");
-			return;
-		}
-	};
+	// let req = match req.into_request() {
+	// 	Ok(r) => r,
+	// 	Err(e) => {
+	// 		println!("partial request error: {e:?}");
+	// 		return;
+	// 	}
+	// };
+	let req = req.into_request();
 	log.write(format!("complete request debug view: {:?}\n", &req).as_bytes());
 
 	log.write("check request attachments (wip)...\n".as_bytes());
-	check_attachments(&req);
+	// check_attachments(&req);
 	log.write("done check request attachments\n".as_bytes());
 
 
@@ -158,20 +183,28 @@ fn handle_connection(
 }
 
 fn create_response(req: &HTTPRequest) -> HTTPResponse {
+	println!("generating response");
+
 	let response = match req.url.path.as_str() {
 		"/file-form" => {
 			match std::fs::read_to_string("html/file-form.html") {
 				Ok(html) => {
 					HTTPResponse {
-						body: html.as_bytes().to_vec(),
-						status: 200,
+						status_code: 200,
+						message: HTTPMessage {
+							body: html.as_bytes().to_vec(),
+							..Default::default()
+						},
 						..HTTPResponse::default()
 					}
 				}
 				Err(e) => {
 					HTTPResponse {
-						body: b"failed to load html/file-form.html".to_vec(),
-						status: 500,
+						status_code: 500,
+						message: HTTPMessage {
+							body: b"failed to load html/file-form.html".to_vec(),
+							..Default::default()
+						},
 						..HTTPResponse::default()
 					}
 				}
@@ -179,7 +212,7 @@ fn create_response(req: &HTTPRequest) -> HTTPResponse {
 		}
 		"/file-form-result" => {
 			let attachment =
-				match req.attachments
+				match req.message.attachments
 					.iter()
 					.find(|a| a.name == "file") {
 					Some(a) => a,
@@ -193,12 +226,12 @@ fn create_response(req: &HTTPRequest) -> HTTPResponse {
 					<span><u>name:</u>&nbsp;{:?}</span><br>\n\
 					<span><u>size:</u>&nbsp;{}</span>\n",
 					attachment.filename,
-					attachment.data.len()
+					attachment.body.len()
 				);
 
 			let path = Path::new("upload.jpg");
 
-			match std::fs::write(&path, &attachment.data) {
+			match std::fs::write(&path, &attachment.body) {
 				Ok(_) => {
 					msg.push_str(
 						format!("<div>successfully saved to <code>{path:?}</code>!</div>\n")
@@ -219,31 +252,43 @@ fn create_response(req: &HTTPRequest) -> HTTPResponse {
 			msg.push('\n');
 
 			HTTPResponse {
-				body: msg.as_bytes().to_vec(),
-				..Default::default()
+				status_code: 200,
+				message: HTTPMessage {
+					body: msg.as_bytes().to_vec(),
+					..Default::default()
+				},
+				..HTTPResponse::default()
 			}
 		}
 		"/upload" => {
 			match std::fs::read("upload.jpg") {
 				Ok(file_data) => {
 					HTTPResponse {
-						headers: vec![
-							HTTPHeader::new(
-								"content-type".to_string(),
-								"image/jpeg".to_string()
-							)
-						],
-						body: file_data,
-						..Default::default()
+						status_code: 200,
+						message: HTTPMessage {
+							headers: vec![
+								HTTPHeader::new(
+									"content-type".to_string(),
+									"image/jpeg".to_string()
+								)
+							],
+							body: file_data,
+							..Default::default()
+						},
+						..HTTPResponse::default()
 					}
 				}
 				Err(e) => HTTPResponse::quick(404)
 			}
 		}
-		_ => HTTPResponse::quick(404)
+
+		_ => {
+			println!("quick");
+			HTTPResponse::quick(404)
+		}
 	};
 
-	if response.body.len() < 60 {
+	if response.message.body.len() < 60 {
 		println!("response debug view: {:?}", &response);
 	}
 
@@ -251,5 +296,5 @@ fn create_response(req: &HTTPRequest) -> HTTPResponse {
 }
 
 fn check_attachments(req: &HTTPRequest) {
-	println!("attachments: {:?}", &req.attachments);
+	println!("attachments: {:?}", &req.message.attachments);
 }

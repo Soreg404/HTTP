@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum HTTPParseError {
 	IncompleteRequest,
 	IllegalByte,
@@ -6,7 +6,15 @@ pub enum HTTPParseError {
 	MalformedMessage(MalformedMessageKind)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum MalformedMessageKind {
-	Other
+	Other,
+	MimetypeMissingBoundaryParam,
+	MimetypeParamMissingEqualSign,
+	MultipartFirstLineBoundary,
+	HeaderContentDisposition,
+	MultipartEndsWithInvalidBytes,
+	FirstLine,
+	UrlGeneral,
+	FirstLineStatusCode,
 }
