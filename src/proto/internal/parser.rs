@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use http::HTTPParseError;
 use crate::http_components::parse_error::HTTPParseError;
 use crate::http_components::parse_error::HTTPParseError::{IllegalByte, MalformedMessage};
 use crate::http_components::validator::ascii_to_string;
@@ -6,13 +7,28 @@ use crate::{HTTPHeader, Url};
 use crate::http_components::parse_error::MalformedMessageKind::Other;
 use crate::http_components::validator;
 
-pub struct FirstLinePartial {
-	pub(crate) method: String,
-	pub(crate) url: Url,
-	pub(crate) version: String,
+pub struct FirstLineRequest {
+	pub method: String,
+	pub url: Url,
+	pub version: String,
 }
 
-pub(crate) fn parse_request_first_line(line_bytes: &[u8]) -> Result<FirstLinePartial, HTTPParseError> {
+pub fn get_first_line_request(line: &[u8]) -> Result<FirstLineRequest, HTTPParseError> {
+
+}
+
+pub struct FirstLineResponse {
+	pub version: String,
+	pub status_code: u16,
+	pub status_text: String,
+}
+pub fn get_first_line_response(line: &[u8]) -> Result<FirstLineResponse, HTTPParseError> {
+
+}
+
+
+
+pub fn parse_request_first_line(line_bytes: &[u8]) -> Result<RequestFirstLine, HTTPParseError> {
 	let line = validator::ascii_to_string(line_bytes)?;
 
 	// todo: should accept multiple spaces btwn GET, URL and VER?
@@ -37,7 +53,7 @@ pub(crate) fn parse_request_first_line(line_bytes: &[u8]) -> Result<FirstLinePar
 		let version = line_parts.get(2).unwrap().to_owned();
 		// todo: check version
 
-		Ok(FirstLinePartial {
+		Ok(RequestFirstLine {
 			method,
 			url,
 			version,

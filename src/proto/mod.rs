@@ -1,5 +1,8 @@
 mod internal;
 
+mod parse_error;
+pub use parse_error::*;
+
 mod mime_type;
 pub use mime_type::MimeType;
 
