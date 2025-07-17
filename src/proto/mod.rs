@@ -1,4 +1,4 @@
-mod interal;
+mod internal;
 
 mod mime_type;
 pub use mime_type::MimeType;
