@@ -9,8 +9,9 @@ mod request;
 mod partial_request;
 mod response;
 mod partial_response;
+mod message_interface;
 
-
+pub use message_interface::HTTPMessageInterface;
 pub use parse_error::HTTPParseError;
 pub use parse_error::MalformedMessageKind;
 pub use url::Url;

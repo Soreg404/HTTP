@@ -1,14 +1,14 @@
 use crate::HTTPResponse;
-use crate::proto::internal::message_parser::MessageParser;
+use crate::proto::internal::partial_message::HTTPPartialMessage;
 
 pub struct HTTPPartialResponse {
-	message_parser: MessageParser
+	message_parser: HTTPPartialMessage
 }
 
 impl Default for HTTPPartialResponse {
 	fn default() -> Self {
 		Self {
-			message_parser: MessageParser::new_response()
+			message_parser: HTTPPartialMessage::new_response()
 		}
 	}
 }

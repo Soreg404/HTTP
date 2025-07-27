@@ -1,13 +1,13 @@
-use crate::proto::internal::message_parser::MessageParser;
+use crate::proto::internal::partial_message::HTTPPartialMessage;
 
 pub struct HTTPPartialRequest {
-	message_parser: MessageParser
+	message_parser: HTTPPartialMessage
 }
 
 impl Default for HTTPPartialRequest {
 	fn default() -> Self {
 		Self {
-			message_parser: MessageParser::new_request()
+			message_parser: HTTPPartialMessage::new_request()
 		}
 	}
 }

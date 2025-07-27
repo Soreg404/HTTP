@@ -48,6 +48,15 @@ fn main() {
 }
 
 fn test_collect_response() {
+
+	let mut req = HTTPRequest::default();
+
+	req.get_mime_type();
+
+	req.set_mime_type(MimeType::TextPlain);
+
+
+
 	println!("connecting");
 	let mut con = std::net::TcpStream::connect("127.0.0.1:80").unwrap();
 	println!("{con:?}");

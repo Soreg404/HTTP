@@ -1,6 +1,8 @@
 use std::fmt::{Debug, Display};
 use std::io::Write;
+use crate::HTTPMessageInterface;
 use crate::proto::attachment::HTTPAttachment;
+use crate::proto::internal::get_message_ref_trait::GetMessageRefInternal;
 use crate::proto::internal::message::HTTPMessage;
 use crate::proto::mime_type::MimeType::Multipart;
 use crate::proto::Url;
@@ -12,12 +14,19 @@ pub struct HTTPRequest {
 	pub message: HTTPMessage,
 }
 
+impl GetMessageRefInternal for HTTPRequest {
+	fn get_message(&self) -> &HTTPMessage { &self.message }
+	fn get_message_mut(&mut self) -> &mut HTTPMessage { &mut self.message }
+}
+
+impl HTTPMessageInterface for HTTPRequest {}
+
 impl Default for HTTPRequest {
 	fn default() -> Self {
 		Self {
 			method: String::from("GET"),
 			url: Default::default(),
-			message: Default::default()
+			message: Default::default(),
 		}
 	}
 }
@@ -67,7 +76,7 @@ impl Debug for HTTPRequest {
 					writeln!(f, "{:?}", attachment)?;
 				}
 			}
-			_=> {
+			_ => {
 				writeln!(f, "| body, length={}:", self.message.body.len())?;
 				if self.message.body.len() < 0x1000 {
 					writeln!(f, "| <<{}>>", String::from_utf8_lossy(self.message.body.as_slice()))?;

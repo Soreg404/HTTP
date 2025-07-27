@@ -29,7 +29,7 @@ enum ParseState {
 	MainBodyStart,
 }
 
-pub struct MessageParser {
+pub struct HTTPPartialMessage {
 	message_is: MessageIs,
 
 	internal_buffer: BufferReader,
@@ -50,7 +50,7 @@ pub struct MessageParser {
 	incomplete_message: HTTPMessage,
 }
 
-impl MessageParser {
+impl HTTPPartialMessage {
 	pub fn new_request() -> Self {
 		Self {
 			message_is: MessageIs::Request,
@@ -88,7 +88,7 @@ impl MessageParser {
 	}
 }
 
-impl MessageParser {
+impl HTTPPartialMessage {
 	pub fn push_bytes(&mut self, data: &[u8]) -> usize {
 		self.internal_buffer.append(data);
 		let starting_head = self.internal_buffer.get_head_idx();
