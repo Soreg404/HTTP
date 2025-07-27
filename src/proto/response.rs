@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display};
 use std::io::Write;
 use crate::proto::header::HTTPHeader;
-use crate::proto::message::HTTPMessage;
+use crate::proto::internal::message::HTTPMessage;
 use crate::proto::mime_type::MimeType;
 
 #[derive(Clone, Debug)]

@@ -1,2 +1,2 @@
-pub mod proto;
-// pub use proto::*;
+mod proto;
+pub use proto::*;

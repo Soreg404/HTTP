@@ -4,14 +4,10 @@ use std::io::{stdout, BufRead, Read, Write};
 use std::net::{Shutdown, SocketAddr};
 use std::path::Path;
 use std::str::FromStr;
-use http::proto::header::HTTPHeader;
-use http::proto::message::HTTPMessage;
-use http::proto::message_parser::MessageParser;
-use http::proto::request::HTTPRequest;
-use http::proto::response::HTTPResponse;
-use http::proto::Url;
 
-mod examples;
+use http::*;
+
+// mod examples;
 
 struct Log {
 	file_handle: File,
@@ -66,7 +62,7 @@ fn test_collect_response() {
 	con.write_all(&req_bytes).unwrap();
 
 	println!("new message collector");
-	let mut response_collector = MessageParser::new_response();
+	let mut response_collector = HTTPPartialResponse::default();
 	let mut buffer = [0u8; 0x400];
 	while !response_collector.is_complete() {
 		let len = con.read(&mut buffer).unwrap();
@@ -84,6 +80,7 @@ fn test_collect_response() {
 
 }
 
+#[cfg(bench)]
 fn start_sample_server() {
 	print!("starting testing server on localhost:8500...");
 	let mut listener = std::net::TcpListener::bind("localhost:8500").unwrap();
@@ -109,6 +106,7 @@ fn start_sample_server() {
 	}
 }
 
+#[cfg(bench)]
 fn handle_connection(
 	stream: &mut std::net::TcpStream,
 	peer: &SocketAddr,
@@ -182,6 +180,7 @@ fn handle_connection(
 	log.write("connection closed\n\n".as_bytes());
 }
 
+#[cfg(bench)]
 fn create_response(req: &HTTPRequest) -> HTTPResponse {
 	println!("generating response");
 

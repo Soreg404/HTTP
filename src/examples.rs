@@ -1,4 +1,4 @@
-
+#![cfg(disabled)]
 
 pub fn run_examples() {
 
