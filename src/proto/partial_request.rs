@@ -1,7 +1,5 @@
-use crate::{HTTPParseError, HTTPPartialResponse, HTTPRequest, HTTPResponse};
-use crate::proto::internal::message::HTTPMessage;
-use crate::proto::internal::parser;
 use crate::proto::internal::partial_message::HTTPPartialMessage;
+use crate::{HTTPParseError, HTTPRequest};
 
 #[derive(Default)]
 pub struct HTTPPartialRequest {
@@ -9,7 +7,7 @@ pub struct HTTPPartialRequest {
 	method: String,
 	target: String,
 
-	partial_message: HTTPPartialMessage
+	partial_message: HTTPPartialMessage,
 }
 
 impl HTTPPartialRequest {

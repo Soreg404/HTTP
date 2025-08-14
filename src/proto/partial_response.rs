@@ -1,6 +1,5 @@
-use crate::{HTTPParseError, HTTPPartialRequest, HTTPRequest, HTTPResponse};
-use crate::proto::internal::message::HTTPMessage;
 use crate::proto::internal::partial_message::HTTPPartialMessage;
+use crate::{HTTPParseError, HTTPResponse};
 
 #[derive(Default)]
 pub struct HTTPPartialResponse {
@@ -8,7 +7,7 @@ pub struct HTTPPartialResponse {
 	status_code: u16,
 	status_text: String,
 
-	partial_message: HTTPPartialMessage
+	partial_message: HTTPPartialMessage,
 }
 
 impl HTTPPartialResponse {
@@ -44,7 +43,7 @@ impl HTTPPartialResponse {
 impl TryInto<HTTPResponse> for HTTPPartialResponse {
 	type Error = HTTPParseError;
 	fn try_into(self) -> Result<HTTPResponse, Self::Error> {
-		let message: HTTPMessage = self.partial_message.try_into()?;
+		let message = self.partial_message.try_into()?;
 
 		Ok(
 			HTTPResponse {

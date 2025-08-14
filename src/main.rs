@@ -32,7 +32,6 @@ impl Log {
 }
 
 fn main() {
-
 	let mut con = TcpStream::connect("http.badssl.com:80").unwrap();
 
 	let mut req = http::HTTPRequest::default();
@@ -63,8 +62,6 @@ fn main() {
 	};
 
 
-
-
 	// examples::run_examples();
 
 	// let server_thread_handle = std::thread::spawn(start_sample_server);
@@ -77,15 +74,13 @@ fn main() {
 	// start_sample_server();
 }
 
-#[cfg(feature="bench")]
+#[cfg(feature = "bench")]
 fn test_collect_response() {
-
 	let mut req = HTTPRequest::default();
 
 	req.get_mime_type();
 
 	req.set_mime_type(MimeType::TextPlain);
-
 
 
 	println!("connecting");
@@ -117,10 +112,9 @@ fn test_collect_response() {
 	println!("GOT RESPONSE:\n\n{response}");
 
 	std::fs::write("favicon.png", response.message.body).unwrap()
-
 }
 
-#[cfg(feature="bench")]
+#[cfg(feature = "bench")]
 fn start_sample_server() {
 	print!("starting testing server on localhost:8500...");
 	let mut listener = std::net::TcpListener::bind("localhost:8500").unwrap();
@@ -146,7 +140,7 @@ fn start_sample_server() {
 	}
 }
 
-#[cfg(feature="bench")]
+#[cfg(feature = "bench")]
 fn handle_connection(
 	stream: &mut std::net::TcpStream,
 	peer: &SocketAddr,
@@ -220,7 +214,7 @@ fn handle_connection(
 	log.write("connection closed\n\n".as_bytes());
 }
 
-#[cfg(feature="bench")]
+#[cfg(feature = "bench")]
 fn create_response(req: &HTTPRequest) -> HTTPResponse {
 	println!("generating response");
 
@@ -334,7 +328,7 @@ fn create_response(req: &HTTPRequest) -> HTTPResponse {
 	response
 }
 
-#[cfg(feature="bench")]
+#[cfg(feature = "bench")]
 fn check_attachments(req: &HTTPRequest) {
 	println!("attachments: {:?}", &req.message.attachments);
 }

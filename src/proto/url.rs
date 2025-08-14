@@ -22,7 +22,6 @@ impl FromStr for Url {
 
 	/** todo: this needs redoing */
 	fn from_str(url_str: &str) -> Result<Self, Self::Err> {
-
 		let (request, fragment_pos) = {
 			let pos = url_str.find('#');
 			if pos.is_some() {
@@ -35,7 +34,7 @@ impl FromStr for Url {
 		let (path, query_str) = {
 			let pos = request.find('?');
 			if pos.is_some() {
-				let pair= request.split_at(pos.unwrap());
+				let pair = request.split_at(pos.unwrap());
 				(pair.0, &pair.1[1..])
 			} else {
 				(request, "")
@@ -193,8 +192,6 @@ impl Debug for Url {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
-
 	#[cfg(bench)]
 	#[test]
 	fn basic_url_from_str() {

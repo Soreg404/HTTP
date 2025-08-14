@@ -1,22 +1,16 @@
+use super::{buffer_reader::BufferReader, message::HTTPMessage};
+use crate::proto::internal::parser::{validate_http_line_bytes, FirstLineRequest, FirstLineResponse};
+use crate::proto::internal::partial_message::AdvanceResult::{CanAdvanceMore, Finished};
+use crate::proto::internal::partial_message::TransferEncoding::{Chunked, TillEOF, Unspecified};
+use crate::proto::parse_error::HTTPParseError::MalformedMessage;
+use crate::proto::parse_error::{HTTPParseError, MalformedMessageKind};
+use crate::HTTPHeader;
+use crate::MalformedMessageKind::{DuplicateTransferEncoding, MalformedHeader};
 use std::io::Write;
-use std::num::ParseIntError;
 use std::str::FromStr;
 use HTTPParseError::IncompleteMessage;
 use MalformedMessageKind::MalformedChunkTrailer;
 use TransferEncoding::ContentLength;
-use crate::HTTPHeader;
-use crate::MalformedMessageKind::{DuplicateTransferEncoding, MalformedHeader};
-use crate::proto::attachment::HTTPAttachment;
-use super::{buffer_reader::BufferReader, message::HTTPMessage, parser};
-use crate::proto::header::{HTTPHeaderRef};
-use crate::proto::internal::parser::{validate_http_line_bytes, FirstLineRequest, FirstLineResponse};
-use crate::proto::internal::partial_message::AdvanceResult::{CanAdvanceMore, Finished};
-use crate::proto::internal::partial_message::TransferEncoding::{Chunked, TillEOF, Unspecified};
-use crate::proto::mime_type::MimeType;
-use crate::proto::parse_error::HTTPParseError::MalformedMessage;
-use crate::proto::parse_error::{HTTPParseError, MalformedMessageKind};
-use crate::proto::request::HTTPRequest;
-use crate::proto::response::HTTPResponse;
 
 #[derive(Default, PartialEq, Debug)]
 enum ParseState {

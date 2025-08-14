@@ -20,7 +20,7 @@ impl HTTPHeader {
 	pub fn new(name: &str, value: &str) -> Self {
 		Self {
 			name: name.to_string(),
-			value: value.to_string()
+			value: value.to_string(),
 		}
 	}
 }

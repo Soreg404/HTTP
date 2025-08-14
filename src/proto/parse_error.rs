@@ -3,7 +3,7 @@ pub enum HTTPParseError {
 	IncompleteMessage,
 	IllegalByte,
 	// maybe BodyTooLong,
-	MalformedMessage(MalformedMessageKind)
+	MalformedMessage(MalformedMessageKind),
 }
 
 #[derive(Debug, Eq, PartialEq)]

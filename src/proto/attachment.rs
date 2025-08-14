@@ -1,6 +1,6 @@
-use std::fmt::{Debug, Formatter};
 use crate::proto::header::HTTPHeader;
 use crate::proto::mime_type::MimeType;
+use std::fmt::{Debug, Formatter};
 
 #[derive(Default)]
 pub struct HTTPAttachment {

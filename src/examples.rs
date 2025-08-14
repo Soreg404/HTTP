@@ -1,7 +1,6 @@
 #![cfg(disabled)]
 
 pub fn run_examples() {
-
 	blue("\n# examples\n");
 
 	// example(example_compose_request, "compose / create a POST request");
@@ -21,7 +20,6 @@ fn blue(text: &str) {
 }
 
 fn example(which: fn(), title: &str) {
-
 	let header = format!("## example: {title}");
 
 	blue(format!("{header}").as_str());

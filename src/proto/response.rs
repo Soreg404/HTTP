@@ -1,9 +1,7 @@
-use std::fmt::{Debug, Display};
-use std::io::Write;
-use crate::HTTPRequest;
 use crate::proto::header::HTTPHeader;
 use crate::proto::internal::message::HTTPMessage;
-use crate::proto::mime_type::MimeType;
+use std::fmt::{Debug, Display};
+use std::io::Write;
 
 #[derive(Debug, Clone)]
 pub struct HTTPResponse {
@@ -102,7 +100,7 @@ impl HTTPResponse {
 	}
 }
 
-#[cfg(feature="bench")]
+#[cfg(feature = "bench")]
 impl Debug for HTTPResponse {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
 		writeln!(f, "HTTP response (version={})", self.http_version)?;

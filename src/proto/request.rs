@@ -1,9 +1,8 @@
-use std::fmt::{Debug, Display};
-use std::io::Write;
-use crate::{HTTPHeader, HTTPParseError, HTTPPartialRequest};
 use crate::proto::attachment::HTTPAttachment;
 use crate::proto::internal::message::HTTPMessage;
-use crate::proto::mime_type::MimeType::Multipart;
+use crate::HTTPHeader;
+use std::fmt::{Debug, Display};
+use std::io::Write;
 
 #[derive(Clone)]
 pub struct HTTPRequest {

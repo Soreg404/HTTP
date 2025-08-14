@@ -19,7 +19,6 @@ impl Default for HTTPMessage {
 }
 
 impl HTTPMessage {
-
 	pub fn write_headers(&self, sink: &mut dyn Write) {
 		todo!()
 	}

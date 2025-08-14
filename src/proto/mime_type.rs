@@ -1,4 +1,4 @@
-use std::fmt::{Debug};
+use std::fmt::Debug;
 
 #[derive(Debug, Default, PartialEq, Ord, PartialOrd, Eq, Clone)]
 pub enum MimeType {
@@ -10,5 +10,5 @@ pub enum MimeType {
 	TextJson,
 	Image,
 	ImagePng,
-	ImageJpg
+	ImageJpg,
 }

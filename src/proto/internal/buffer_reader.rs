@@ -22,10 +22,8 @@ impl Write for BufferReader {
 }
 
 impl BufferReader {
-
 	pub fn take_line(&mut self) -> Option<&[u8]> {
 		while self.read_head < self.internal_buffer.len() {
-
 			let line = &self.internal_buffer[self.bytes_taken..=self.read_head];
 			self.read_head += 1;
 
@@ -42,7 +40,6 @@ impl BufferReader {
 
 	pub fn take_until(&mut self, sequence: &[u8]) -> Option<&[u8]> {
 		while self.read_head < self.internal_buffer.len() {
-
 			let line = &self.internal_buffer[self.bytes_taken..=self.read_head];
 			self.read_head += 1;
 
@@ -56,7 +53,6 @@ impl BufferReader {
 	}
 
 	pub fn take_exact(&mut self, n_bytes: usize) -> Option<&[u8]> {
-
 		if n_bytes == 0 {
 			return Some([].as_slice());
 		}
@@ -90,7 +86,7 @@ mod tests {
 	}
 
 	#[test]
-	fn take_until(){
+	fn take_until() {
 		let mut buffer = BufferReader::default();
 		let sequence = "--sequence".as_bytes();
 		buffer.write_all("some content".as_bytes()).unwrap();
@@ -105,7 +101,7 @@ mod tests {
 	}
 
 	#[test]
-	fn take_exact(){
+	fn take_exact() {
 		let mut buffer = BufferReader::default();
 		buffer.write_all("data".as_bytes()).unwrap();
 		assert_eq!(buffer.take_exact(4), Some("data".as_bytes()));

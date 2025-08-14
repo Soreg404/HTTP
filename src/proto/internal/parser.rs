@@ -1,9 +1,8 @@
+use crate::proto::header::HTTPHeader;
+use crate::proto::parse_error::HTTPParseError::{IllegalByte, MalformedMessage};
+use crate::proto::parse_error::{HTTPParseError, MalformedMessageKind};
 use std::str::FromStr;
 use MalformedMessageKind::{FirstLine, FirstLineStatusCode, MalformedHTTPVersion};
-use crate::MalformedMessageKind::MalformedHeader;
-use crate::proto::header::{HTTPHeader, HTTPHeaderRef};
-use crate::proto::parse_error::{HTTPParseError, MalformedMessageKind};
-use crate::proto::parse_error::HTTPParseError::{IllegalByte, MalformedMessage};
 
 pub struct FirstLineRequest {
 	pub method: String,
