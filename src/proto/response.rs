@@ -1,14 +1,15 @@
 use std::fmt::{Debug, Display};
 use std::io::Write;
+use crate::HTTPRequest;
 use crate::proto::header::HTTPHeader;
 use crate::proto::internal::message::HTTPMessage;
 use crate::proto::mime_type::MimeType;
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub struct HTTPResponse {
-	pub status_code: u16,
-	pub status_text: String,
-	pub message: HTTPMessage,
+	pub(super) status_code: u16,
+	pub(super) status_text: String,
+	pub(super) message: HTTPMessage,
 }
 
 // todo: delete default as it has to set the status_code manually
@@ -17,8 +18,32 @@ impl Default for HTTPResponse {
 		Self {
 			status_code: 200,
 			status_text: Self::status_code_to_str(200).into(),
-			message: Default::default()
+			message: Default::default(),
 		}
+	}
+}
+
+impl HTTPResponse {
+	pub fn set_status_code(&mut self, status_code: u16) {
+		self.status_code = status_code;
+	}
+	pub fn get_status_code(&self) -> u16 {
+		self.status_code
+	}
+	pub fn set_status_text(&mut self, status_text: &str) {
+		self.status_text = status_text.to_string();
+	}
+	pub fn get_status_text(&self) -> &str {
+		self.status_text.as_str()
+	}
+}
+
+impl HTTPResponse {
+	pub fn headers(&self) -> &Vec<HTTPHeader> {
+		&self.message.headers
+	}
+	pub fn headers_mut(&mut self) -> &mut Vec<HTTPHeader> {
+		&mut self.message.headers
 	}
 }
 
@@ -47,11 +72,10 @@ impl HTTPResponse {
 			message: HTTPMessage {
 				headers: vec![
 					HTTPHeader::new(
-						String::from("content-type"),
-						String::from("application/json")
+						"content-type",
+						"application/json)"
 					)
 				],
-				mime_type: MimeType::TextJson,
 				body: json_string.as_bytes().to_vec(),
 				..Default::default()
 			},
@@ -62,8 +86,9 @@ impl HTTPResponse {
 
 		write!(
 			&mut ret,
-			"{} {} {}\r\n",
-			self.message.http_version,
+			"HTTP/{}.{} {} {}\r\n",
+			self.message.http_version.0,
+			self.message.http_version.1,
 			self.status_code,
 			self.status_text
 		)
@@ -77,7 +102,7 @@ impl HTTPResponse {
 	}
 }
 
-#[cfg(delete)]
+#[cfg(feature="bench")]
 impl Debug for HTTPResponse {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
 		writeln!(f, "HTTP response (version={})", self.http_version)?;

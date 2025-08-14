@@ -1,377 +1,272 @@
+use std::io::Write;
+use std::num::ParseIntError;
+use std::str::FromStr;
+use HTTPParseError::IncompleteMessage;
+use MalformedMessageKind::MalformedChunkTrailer;
+use TransferEncoding::ContentLength;
+use crate::HTTPHeader;
+use crate::MalformedMessageKind::{DuplicateTransferEncoding, MalformedHeader};
 use crate::proto::attachment::HTTPAttachment;
 use super::{buffer_reader::BufferReader, message::HTTPMessage, parser};
-use crate::proto::header::HTTPHeaderEnum;
-use crate::proto::internal::endline::{strip_last_endl};
+use crate::proto::header::{HTTPHeaderRef};
+use crate::proto::internal::parser::{validate_http_line_bytes, FirstLineRequest, FirstLineResponse};
+use crate::proto::internal::partial_message::AdvanceResult::{CanAdvanceMore, Finished};
+use crate::proto::internal::partial_message::TransferEncoding::{Chunked, TillEOF, Unspecified};
 use crate::proto::mime_type::MimeType;
 use crate::proto::parse_error::HTTPParseError::MalformedMessage;
 use crate::proto::parse_error::{HTTPParseError, MalformedMessageKind};
 use crate::proto::request::HTTPRequest;
 use crate::proto::response::HTTPResponse;
-use crate::proto::Url;
 
-#[derive(Debug, Eq, PartialEq)]
-enum MessageIs {
-	Request,
-	Response,
-}
-
+#[derive(Default, PartialEq, Debug)]
 enum ParseState {
-	FirstLineRequest,
-	FirstLineResponse,
-
-	MainHeaders,
-	MainBody,
-
-	MultipartStart,
-	AttachmentHeaders,
-	AttachmentBody,
-	MultipartEnd,
-	MainBodyStart,
+	#[default]
+	FirstLine,
+	Headers,
+	Body,
 }
 
-pub struct HTTPPartialMessage {
-	message_is: MessageIs,
+#[derive(Default, PartialEq, Debug)]
+enum TransferEncoding {
+	#[default]
+	Unspecified,
+	TillEOF,
+	Chunked(Option<usize>),
+	ContentLength(usize),
+}
 
+#[derive(Default)]
+pub struct HTTPPartialMessage {
+	parse_result: Option<Result<(), HTTPParseError>>,
 	internal_buffer: BufferReader,
 
 	state: ParseState,
-	result: Option<Result<(), HTTPParseError>>,
 
-	expect_content_length: Option<usize>,
-	expect_mime_type: Option<MimeType>,
+	transfer_encoding: TransferEncoding,
 
-	request_method: String,
-	request_url_target: Url,
+	with_http_version: Option<(u8, u8)>,
 
-	response_status_code: u16,
-	response_status_text: String,
+	// todo: make it a reference to internal_buffer instead of owning
+	with_headers: Vec<HTTPHeader>,
+	with_body: Vec<u8>,
+}
 
-	body_start_index: usize,
-	incomplete_message: HTTPMessage,
+enum AdvanceResult {
+	CanAdvanceMore,
+	Finished,
 }
 
 impl HTTPPartialMessage {
-	pub fn new_request() -> Self {
-		Self {
-			message_is: MessageIs::Request,
-			state: ParseState::FirstLineRequest,
+	pub fn push_bytes(&mut self, data: &[u8]) {
+		assert_eq!(self.parse_result, None);
 
-			internal_buffer: Default::default(),
-			result: None,
-			expect_content_length: None,
-			expect_mime_type: None,
-			request_method: "".to_string(),
-			request_url_target: Default::default(),
-			response_status_code: 0,
-			response_status_text: "".to_string(),
-			body_start_index: 0,
-			incomplete_message: Default::default(),
-		}
+		self.internal_buffer.write_all(data).unwrap();
 	}
-
-	pub fn new_response() -> Self {
-		Self {
-			message_is: MessageIs::Response,
-			state: ParseState::FirstLineResponse,
-
-			internal_buffer: Default::default(),
-			result: None,
-			expect_content_length: None,
-			expect_mime_type: None,
-			request_method: "".to_string(),
-			request_url_target: Default::default(),
-			response_status_code: 0,
-			response_status_text: "".to_string(),
-			body_start_index: 0,
-			incomplete_message: Default::default(),
-		}
-	}
-}
-
-impl HTTPPartialMessage {
-	pub fn push_bytes(&mut self, data: &[u8]) -> usize {
-		self.internal_buffer.append(data);
-		let starting_head = self.internal_buffer.get_head_idx();
-
-		self.process_buffer();
-
-		let processed_bytes = self.internal_buffer.get_head_idx() - starting_head;
-		processed_bytes
-	}
-
-	fn process_buffer(&mut self) {
-		while self.result.is_none()
-			&& self.internal_buffer.advance() {
-			self.match_state();
-		}
-	}
-
-	fn match_state(&mut self) {
-		match self.state {
-			ParseState::FirstLineRequest => {
-				println!("first line request - state continue");
-				match self.internal_buffer.read_line() {
-					None => return,
-					Some(line) => {
-						println!("first line request - line {:?}", String::from_utf8_lossy(line));
-
-						let flr = match parser::get_first_line_request(line) {
-							Ok(flr) => flr,
-							Err(e) => {
-								self.result = Some(Err(e));
-								return;
-							}
-						};
-
-						self.request_method = flr.method;
-						self.request_url_target = flr.url;
-						self.incomplete_message.http_version = flr.version;
-
-						self.state = ParseState::MainHeaders;
-					}
-				};
-			}
-			ParseState::FirstLineResponse => {
-				println!("first line response - state continue");
-				match self.internal_buffer.read_line() {
-					None => return,
-					Some(line) => {
-						println!("first line response - line {:?}", String::from_utf8_lossy(line));
-						let flr = match parser::get_first_line_response(line) {
-							Ok(flr) => flr,
-							Err(e) => {
-								self.result = Some(Err(e));
-								return;
-							}
-						};
-
-						self.incomplete_message.http_version = flr.version;
-						self.response_status_code = flr.status_code;
-						self.response_status_text = flr.status_text;
-
-						self.state = ParseState::MainHeaders;
-					}
-				};
-			}
-
-			ParseState::MainHeaders => {
-				println!("main headers - continue");
-				match self.internal_buffer.read_line() {
-					None => return,
-					Some(line) => {
-						println!("main headers - line {line:?}");
-						if line.is_empty() {
-							self.state = ParseState::MainBodyStart;
+	pub fn advance(&mut self) {
+		loop {
+			match self.advance_state() {
+				None => return,
+				Some(Ok(ar)) => {
+					match ar {
+						CanAdvanceMore => continue,
+						Finished => {
+							self.parse_result = Some(Ok(()));
 							return;
 						}
-
-						let header = match parser::header_from_line_bytes(line) {
-							Ok(h) => h,
-							Err(e) => {
-								self.result = Some(Err(e));
-								return;
-							}
-						};
-
-						self.incomplete_message.headers.push(header);
-						let header = self.incomplete_message
-							.headers.last().unwrap();
-
-						match HTTPHeaderEnum::from_header(&header) {
-							Err(e) => {
-								// todo: skip or bail? some errors better than others?
-								self.result = Some(Err(e));
-								return;
-							}
-							Ok(v) => {
-								match v {
-									HTTPHeaderEnum::ContentLength(len) => {
-										self.expect_content_length = Some(len)
-									}
-									HTTPHeaderEnum::ContentType(mime) => {
-										self.expect_mime_type = Some(mime)
-									}
-									_ => {}
-								}
-							}
-						}
 					}
 				}
-			}
-			ParseState::MainBodyStart => {
-				println!("main body start - continue");
-				// match self.expect_content_length {
-				// 	None | Some(ref len) if *len == 0 => {
-				// 		self.result = Some(Ok(()));
-				// 		return;
-				// 	}
-				// 	_ => {}
-				// };
-
-				self.body_start_index = self.internal_buffer.get_head_idx();
-
-				self.state = match self.expect_mime_type {
-					Some(MimeType::Multipart(_)) => ParseState::MultipartStart,
-					_ => ParseState::MainBody,
-				}
-			}
-
-			ParseState::MainBody => {
-				println!("main body - continue");
-
-				let len = self.expect_content_length
-					.unwrap_or(0);
-
-				match self.internal_buffer.read_exact(len) {
-					None => return,
-					Some(body) => {
-						println!("main body - got contents - finish");
-						self.incomplete_message.body = body.to_vec();
-					}
-				}
-
-				self.result = Some(Ok(()));
-			}
-
-			ParseState::MultipartStart => {
-				println!("multipart start - continue");
-
-				let line = match self.internal_buffer.read_line() {
-					None => return,
-					Some(line) => line
-				};
-				println!("multipart start - line {line:?}");
-
-				let MimeType::Multipart(boundary) =
-					self.expect_mime_type
-						.as_ref()
-						.expect("multipart mime type should be set here, in MultipartStart") else { todo!() };
-
-				let boundary_with_prefix = format!("--{boundary}");
-
-				if line != boundary_with_prefix.as_bytes() {
-					self.result = Some(Err(
-						MalformedMessage(
-							MalformedMessageKind::MultipartFirstLineBoundary
-						)
-					));
+				Some(Err(e)) => {
+					self.parse_result = Some(Err(e));
 					return;
 				}
-
-				self.state = ParseState::AttachmentHeaders;
 			}
-			ParseState::AttachmentHeaders => {
-				println!("attachment headers - continue");
+		}
+	}
+	pub fn is_finished(&self) -> bool {
+		self.parse_result.is_some()
+	}
+	pub fn signal_connection_closed(&mut self) {
+		if self.parse_result.is_some() {
+			return;
+		}
 
-				match self.internal_buffer.read_line() {
-					None => return,
-					Some(line) => {
-						println!("attachment headers - line {line:?}");
+		if match self.transfer_encoding {
+			ContentLength(l) => self.with_body.len() == l,
+			_ => false
+		} {
+			self.parse_result = Some(Ok(()));
+		} else if self.state == ParseState::Body
+			&& self.transfer_encoding == Unspecified {
+			self.parse_result = Some(Ok(()));
+		} else {
+			self.parse_result = Some(Err(IncompleteMessage))
+		}
+	}
 
-						if line.is_empty() {
-							self.state = ParseState::AttachmentBody
+	///
+	pub fn is_first_line(&self) -> bool {
+		match self.state {
+			ParseState::FirstLine => true,
+			_ => false,
+		}
+	}
+	pub fn take_first_line_request(&mut self) -> Option<FirstLineRequest> {
+		assert_eq!(self.state, ParseState::FirstLine);
+		let line = self.internal_buffer.take_line()?;
+		self.state = ParseState::Headers;
+
+		Some(
+			match FirstLineRequest::try_from(line) {
+				Ok(v) => v,
+				Err(e) => {
+					self.parse_result = Some(Err(e));
+					return None;
+				}
+			}
+		)
+	}
+	pub fn take_first_line_response(&mut self) -> Option<FirstLineResponse> {
+		assert_eq!(self.state, ParseState::FirstLine);
+		let line = self.internal_buffer.take_line()?;
+		self.state = ParseState::Headers;
+
+		Some(
+			match FirstLineResponse::try_from(line) {
+				Ok(v) => v,
+				Err(e) => {
+					self.parse_result = Some(Err(e));
+					return None;
+				}
+			}
+		)
+	}
+
+	///
+	fn advance_state(&mut self) -> Option<Result<AdvanceResult, HTTPParseError>> {
+		match self.state {
+			ParseState::FirstLine => unreachable!("first line should be handled already"),
+			ParseState::Headers => {
+				let line = self.internal_buffer.take_line()?;
+
+				let line = match validate_http_line_bytes(line) {
+					Ok(line) => line,
+					Err(e) => return Some(Err(e))
+				};
+
+				let line = line.trim();
+
+				if line.is_empty() {
+					self.state = ParseState::Body;
+					return Some(Ok(CanAdvanceMore));
+				}
+
+				let header = match HTTPHeader::from_str(line) {
+					Ok(header) => header,
+					Err(e) => return Some(Err(e))
+				};
+
+				match header.name.to_lowercase().as_str() {
+					"connection" => {
+						if self.transfer_encoding == Unspecified {
+							self.transfer_encoding = TillEOF;
 						}
-
-						let header = match parser::header_from_line_bytes(line) {
-							Ok(h) => h,
-							Err(e) => {
-								self.result = Some(Err(e));
-								return;
+					}
+					"transfer-encoding" => {
+						match self.transfer_encoding {
+							Unspecified | TillEOF => {
+								self.transfer_encoding = Chunked(None);
 							}
+							Chunked(_) | ContentLength(_) => return Some(Err(
+								MalformedMessage(DuplicateTransferEncoding)))
+						}
+					}
+					"content-length" => {
+						match self.transfer_encoding {
+							Unspecified | TillEOF => {
+								let value_parsed = match header.value
+									.parse::<usize>() {
+									Ok(value) => value,
+									Err(e) => return Some(Err(
+										MalformedMessage(MalformedHeader)))
+								};
+
+								self.transfer_encoding = ContentLength(value_parsed);
+							}
+							Chunked(_) | ContentLength(_) => return Some(Err(
+								MalformedMessage(DuplicateTransferEncoding)))
+						}
+					}
+					"content-length-range" => todo!("idk what is this header lol"),
+					"content-type" => {
+						println!("still can't parse content-type header!");
+						// todo!("can't parse content-type header yet!")
+					}
+					_ => {}
+				}
+
+				self.with_headers.push(header.into());
+
+				Some(Ok(CanAdvanceMore))
+			}
+			ParseState::Body => {
+				match self.transfer_encoding {
+					Unspecified => Some(Ok(Finished)),
+					TillEOF => todo!(),
+					Chunked(None) => {
+						let line = self.internal_buffer.take_line()?;
+
+						let line = match validate_http_line_bytes(line) {
+							Ok(line) => line,
+							Err(e) => return Some(Err(e))
 						};
 
-						let mut last_attachment = self.get_last_attachment();
+						let chunk_size = match usize::from_str_radix(line, 16) {
+							Ok(chunk_size) => chunk_size,
+							Err(e) => return Some(Err(
+								MalformedMessage(MalformedChunkTrailer)))
+						};
 
-						last_attachment.headers.push(header);
-						let header = last_attachment
-							.headers.last().unwrap();
-
-						match HTTPHeaderEnum::from_header(&header) {
-							Err(e) => {
-								// todo: skip or bail? some errors better than others?
-								self.result = Some(Err(e));
-								return;
-							}
-							Ok(v) => {
-								match v {
-									HTTPHeaderEnum::ContentType(mime) => {
-										last_attachment.mime_type = mime
-									}
-									HTTPHeaderEnum::ContentDispositionFormData(data) => {
-										last_attachment.name = data.name;
-										last_attachment.filename = data.filename;
-									}
-									_ => {}
-								}
-							}
-						}
-					}
-				}
-			}
-			ParseState::AttachmentBody => {
-				let MimeType::Multipart(boundary) =
-					self.expect_mime_type
-						.as_ref()
-						.expect("multipart mime type should be set here, in AttachmentBody") else { todo!() };
-
-				let boundary_with_prefix = format!("--{boundary}");
-
-				match self.internal_buffer.read_until(boundary_with_prefix.as_bytes()) {
-					None => return,
-					Some(body) => {
-						let body = strip_last_endl(body);
-						self.get_last_attachment().body = body.to_vec();
-					}
-				}
-
-				self.state = ParseState::MultipartEnd;
-			}
-			ParseState::MultipartEnd => {
-				match self.internal_buffer.read_line() {
-					None => return,
-					Some(line) => {
-						if line.is_empty() {
-							self.state = ParseState::AttachmentHeaders
-						} else if line == b"--" {
-							self.result = Some(Ok(()))
+						if chunk_size == 0 {
+							Some(Ok(Finished))
 						} else {
-							self.result = Some(Err(MalformedMessage(
-								MalformedMessageKind::MultipartEndsWithInvalidBytes
-							)))
+							self.transfer_encoding = Chunked(Some(chunk_size));
+							Some(Ok(CanAdvanceMore))
 						}
+					}
+					Chunked(Some(length)) => {
+						let data = self.internal_buffer.take_exact(length)?;
+
+						self.with_body.extend(data);
+						self.transfer_encoding = Chunked(None);
+						Some(Ok(CanAdvanceMore))
+					}
+					ContentLength(length) => {
+						let data = self.internal_buffer.take_exact(length)?;
+
+						self.with_body = data.to_vec();
+
+						Some(Ok(Finished))
 					}
 				}
 			}
 		}
 	}
+}
 
-	fn get_last_attachment(&mut self) -> &mut HTTPAttachment {
-		let mut ats = &mut self.incomplete_message.attachments;
-		if ats.is_empty() {
-			ats.push(HTTPAttachment::default())
+impl TryInto<HTTPMessage> for HTTPPartialMessage {
+	type Error = HTTPParseError;
+
+	fn try_into(self) -> Result<HTTPMessage, Self::Error> {
+		if let Some(Err(e)) = self.parse_result {
+			return Err(e);
 		}
-		ats.last_mut().unwrap()
-	}
 
-	pub fn is_complete(&self) -> bool {
-		self.result.is_some()
-	}
-
-	pub fn into_request(self) -> HTTPRequest {
-		assert_eq!(self.message_is, MessageIs::Request);
-		HTTPRequest {
-			method: self.request_method,
-			url: self.request_url_target,
-			message: self.incomplete_message,
-		}
-	}
-
-	pub fn into_response(self) -> HTTPResponse {
-		assert_eq!(self.message_is, MessageIs::Response);
-		HTTPResponse {
-			status_code: self.response_status_code,
-			status_text: self.response_status_text,
-			message: self.incomplete_message,
-		}
+		Ok(
+			HTTPMessage {
+				http_version: self.with_http_version.unwrap_or((1, 0)),
+				headers: self.with_headers,
+				body: self.with_body,
+			}
+		)
 	}
 }

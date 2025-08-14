@@ -2,7 +2,7 @@ use std::fmt::{Debug, Formatter};
 use crate::proto::header::HTTPHeader;
 use crate::proto::mime_type::MimeType;
 
-#[derive(Default, Clone)]
+#[derive(Default)]
 pub struct HTTPAttachment {
 	pub headers: Vec<HTTPHeader>,
 	pub mime_type: MimeType,

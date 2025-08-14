@@ -1,6 +1,7 @@
 mod internal;
 
 mod parse_error;
+#[cfg(feature = "bench")]
 mod url;
 mod mime_type;
 mod header;
@@ -9,11 +10,9 @@ mod request;
 mod partial_request;
 mod response;
 mod partial_response;
-mod message_interface;
-
-pub use message_interface::HTTPMessageInterface;
 pub use parse_error::HTTPParseError;
 pub use parse_error::MalformedMessageKind;
+#[cfg(feature = "bench")]
 pub use url::Url;
 pub use header::HTTPHeader;
 pub use mime_type::MimeType;

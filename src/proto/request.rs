@@ -1,55 +1,62 @@
 use std::fmt::{Debug, Display};
 use std::io::Write;
-use crate::HTTPMessageInterface;
+use crate::{HTTPHeader, HTTPParseError, HTTPPartialRequest};
 use crate::proto::attachment::HTTPAttachment;
-use crate::proto::internal::get_message_ref_trait::GetMessageRefInternal;
 use crate::proto::internal::message::HTTPMessage;
 use crate::proto::mime_type::MimeType::Multipart;
-use crate::proto::Url;
 
 #[derive(Clone)]
 pub struct HTTPRequest {
 	pub(super) method: String,
-	pub(super) url: Url,
+	pub(super) target: String,
 	pub(super) message: HTTPMessage,
 }
-
-impl GetMessageRefInternal for HTTPRequest {
-	fn get_message(&self) -> &HTTPMessage { &self.message }
-	fn get_message_mut(&mut self) -> &mut HTTPMessage { &mut self.message }
-}
-
-impl HTTPMessageInterface for HTTPRequest {}
 
 impl Default for HTTPRequest {
 	fn default() -> Self {
 		Self {
 			method: String::from("GET"),
-			url: Default::default(),
+			target: "/".to_string(),
 			message: Default::default(),
 		}
 	}
 }
 
 impl HTTPRequest {
-
-	pub fn new(method: &str, url: Url) -> Self {
-		Self {
-			method: method.to_string(),
-			url,
-			message: Default::default(),
-		}
+	pub fn set_method(&mut self, method: &str) {
+		self.method = method.to_string();
 	}
+	pub fn get_method(&self) -> &str {
+		self.method.as_str()
+	}
+	pub fn set_target(&mut self, target: &str) {
+		self.target = target.to_string();
+	}
+	pub fn get_target(&self) -> &str {
+		self.target.as_str()
+	}
+}
 
+impl HTTPRequest {
+	pub fn headers(&self) -> &Vec<HTTPHeader> {
+		&self.message.headers
+	}
+	pub fn headers_mut(&mut self) -> &mut Vec<HTTPHeader> {
+		&mut self.message.headers
+	}
+}
+
+impl HTTPRequest {
 	pub fn to_bytes(&self) -> Vec<u8> {
 		let mut ret = Vec::<u8>::new();
 
 		write!(
 			&mut ret,
-			"{} {} {}\r\n",
+			"{} {} HTTP/{}.{}\r\n",
 			self.method,
-			self.url.get_request_target(),
-			self.message.http_version
+			self.target,
+			self.message.http_version.0,
+			self.message.http_version.1,
 		)
 			.expect("writing bytes to vec");
 
@@ -67,17 +74,16 @@ impl HTTPRequest {
 
 impl Debug for HTTPRequest {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-		writeln!(f, "HTTP request (version={})", self.message.http_version)?;
+		writeln!(f, "HTTP request (version={:?})", self.message.http_version)?;
 		writeln!(f, "| method={}", self.method)?;
-		writeln!(f, "| path={}", self.url.path)?;
-		writeln!(f, "| query={:?}", self.url.query_string)?;
+		writeln!(f, "| target={}", self.target)?;
 		writeln!(f, "| headers:")?;
 		for h in &self.message.headers {
 			writeln!(f, "| - [{}]: [{}]", h.name, h.value)?;
 		}
-		writeln!(f, "| mime-type={:?}", self.message.mime_type)?;
+		// writeln!(f, "| mime-type={:?}", self.message.mime_type)?;
 
-		match self.message.mime_type {
+		/*match self.message.mime_type {
 			Multipart(_) => {
 				writeln!(f, "| body - multipart")?;
 				writeln!(f, "| attachments:")?;
@@ -93,7 +99,7 @@ impl Debug for HTTPRequest {
 					writeln!(f, "| [body too long to display]")?;
 				}
 			}
-		}
+		}*/
 
 		writeln!(f, "| that's all.")?;
 		Ok(())

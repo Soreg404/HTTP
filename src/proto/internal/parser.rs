@@ -1,87 +1,94 @@
 use std::str::FromStr;
-use crate::proto::header::HTTPHeader;
+use MalformedMessageKind::{FirstLine, FirstLineStatusCode, MalformedHTTPVersion};
+use crate::MalformedMessageKind::MalformedHeader;
+use crate::proto::header::{HTTPHeader, HTTPHeaderRef};
 use crate::proto::parse_error::{HTTPParseError, MalformedMessageKind};
 use crate::proto::parse_error::HTTPParseError::{IllegalByte, MalformedMessage};
-use crate::proto::Url;
 
 pub struct FirstLineRequest {
 	pub method: String,
-	pub url: Url,
-	pub version: String,
+	pub target: String,
+	pub version: (u8, u8),
 }
+impl TryFrom<&[u8]> for FirstLineRequest {
+	type Error = HTTPParseError;
+	fn try_from(line: &[u8]) -> Result<Self, Self::Error> {
+		let line = validate_http_line_bytes(line)?;
 
-pub fn get_first_line_request(line: &[u8]) -> Result<FirstLineRequest, HTTPParseError> {
-	let line = validate_http_line_bytes(line)?;
+		let line_parts = line
+			.split_whitespace()
+			.collect::<Vec<&str>>();
 
-	let line_parts = line
-		.split_whitespace()
-		.map(|s| s.to_owned())
-		.collect::<Vec<String>>();
-
-	if line_parts.len() != 3 {
-		return Err(MalformedMessage(MalformedMessageKind::FirstLine));
-	}
-
-	let method = line_parts.get(0).unwrap().to_owned();
-	// todo: check method validity
-
-	let url = match Url::from_str(line_parts.get(1).unwrap()) {
-		Ok(v) => v,
-		Err(e) => {
-			return Err(MalformedMessage(MalformedMessageKind::UrlGeneral))
+		if line_parts.len() != 3 {
+			return Err(MalformedMessage(FirstLine));
 		}
-	};
 
-	let version = line_parts.get(2).unwrap().to_owned();
-	// todo: check version
+		let method = line_parts.get(0).unwrap().to_owned().to_string();
+		// todo: check method validity
 
-	Ok(FirstLineRequest {
-		method,
-		url,
-		version,
-	})
+		// let url = match Url::from_str(line_parts.get(1).unwrap()) {
+		// 	Ok(v) => v,
+		// 	Err(e) => {
+		// 		return Err(MalformedMessage(MalformedMessageKind::UrlGeneral))
+		// 	}
+		// };
+		let target = line_parts.get(1).unwrap().to_owned().to_string();
+
+		let version = line_parts.get(2).unwrap().to_owned();
+		let version = http_version_from_str(version)?;
+		// todo: check version
+
+		Ok(FirstLineRequest {
+			method,
+			target,
+			version,
+		})
+	}
 }
+
 
 pub struct FirstLineResponse {
-	pub version: String,
+	pub version: (u8, u8),
 	pub status_code: u16,
 	pub status_text: String,
 }
-pub fn get_first_line_response(line: &[u8]) -> Result<FirstLineResponse, HTTPParseError> {
-	let line = validate_http_line_bytes(line)?;
 
-	let line_parts = line
-		.split_whitespace()
-		.map(|s| s.to_owned())
-		.collect::<Vec<String>>();
+impl TryFrom<&[u8]> for FirstLineResponse {
+	type Error = HTTPParseError;
 
-	if line_parts.len() < 3 {
-		return Err(MalformedMessage(MalformedMessageKind::FirstLine));
+	fn try_from(line: &[u8]) -> Result<Self, Self::Error> {
+		let line = validate_http_line_bytes(line)?;
+
+		let line_parts = line
+			.split_whitespace()
+			.collect::<Vec<&str>>();
+
+		if line_parts.len() < 3 {
+			return Err(MalformedMessage(FirstLine));
+		}
+
+		let version = line_parts.get(0).unwrap();
+		let version = http_version_from_str(version)?;
+
+		let status_code = match line_parts.get(1).unwrap()
+			.parse::<u16>() {
+			Ok(v) => v,
+			Err(e) => return Err(
+				MalformedMessage(FirstLineStatusCode)),
+		};
+
+		let status_text = line_parts[2..].join(" ");
+
+		Ok(FirstLineResponse {
+			version,
+			status_code,
+			status_text,
+		})
 	}
-
-	let version = line_parts.get(0).unwrap().to_owned();
-	// todo: check version
-
-	let status_code = match line_parts.get(1).unwrap()
-		.parse::<u16>() {
-		Ok(v) => v,
-		Err(e) => return Err(MalformedMessage(
-			MalformedMessageKind::FirstLineStatusCode
-		)),
-	};
-	// todo: check method validity
-
-	let status_text = line_parts[2..].join(" ");
-
-	Ok(FirstLineResponse {
-		version,
-		status_code,
-		status_text,
-	})
 }
 
 
-#[cfg(delete)]
+#[cfg(feature = "delete")]
 pub fn parse_request_first_line(line_bytes: &[u8]) -> Result<RequestFirstLine, HTTPParseError> {
 	let line = validator::ascii_to_string(line_bytes)?;
 
@@ -115,7 +122,7 @@ pub fn parse_request_first_line(line_bytes: &[u8]) -> Result<RequestFirstLine, H
 	}
 }
 
-fn validate_http_line_bytes(line_bytes: &[u8]) -> Result<&str, HTTPParseError> {
+pub fn validate_http_line_bytes(line_bytes: &[u8]) -> Result<&str, HTTPParseError> {
 	for b in line_bytes.iter().cloned() {
 		if !b.is_ascii_graphic() && b != b' ' {
 			return Err(IllegalByte);
@@ -128,13 +135,7 @@ fn validate_http_line_bytes(line_bytes: &[u8]) -> Result<&str, HTTPParseError> {
 
 pub fn header_from_line_bytes(line_bytes: &[u8]) -> Result<HTTPHeader, HTTPParseError> {
 	let line = validate_http_line_bytes(line_bytes)?;
-
-	Ok(
-		HTTPHeader::from_str(line)
-			.expect("from_str currently can't return Err, \
-						if it does then some breaking changes with HTTPHeader happened,\
-							 remember to fix here")
-	)
+	HTTPHeader::from_str(line)
 }
 
 
@@ -190,4 +191,47 @@ pub fn header_content_disposition_value(value: &str)
 			filename,
 		}
 	)
+}
+
+
+fn http_version_from_str(s: &str) -> Result<(u8, u8), HTTPParseError> {
+	let ver_proper = match s.strip_prefix("HTTP/") {
+		None => return Err(MalformedMessage(MalformedHTTPVersion)),
+		Some(d) => d
+	};
+
+	let bytes = ver_proper.as_bytes();
+	if bytes.len() != 3 || bytes[1] != b'.' {
+		return Err(MalformedMessage(MalformedHTTPVersion));
+	}
+
+	let ver_hi = match bytes.get(0).unwrap()
+		.checked_sub(b'0') {
+		None | Some(0) | Some(4..) => {
+			return Err(MalformedMessage(MalformedHTTPVersion))
+		}
+		Some(v) => v
+	};
+
+	let ver_lo = match bytes.get(2).unwrap()
+		.checked_sub(b'0') {
+		None | Some(10..) => {
+			return Err(MalformedMessage(MalformedHTTPVersion))
+		}
+		Some(v) => v
+	};
+
+	Ok((ver_hi, ver_lo))
+}
+
+#[test]
+fn test_http_version_from_str() {
+	assert_eq!(http_version_from_str("HTTP/1.1"), Ok((1, 1)));
+	assert_eq!(http_version_from_str("HTTP/2.1"), Ok((2, 1)));
+	assert_eq!(http_version_from_str("HTTP/3.0"), Ok((3, 0)));
+
+	let e = Err(MalformedMessage(MalformedHTTPVersion));
+	assert_eq!(http_version_from_str("HTTP/5.0"), e);
+	assert_eq!(http_version_from_str("HTTP/0.12"), e);
+	assert_eq!(http_version_from_str("HTTP/123"), e);
 }

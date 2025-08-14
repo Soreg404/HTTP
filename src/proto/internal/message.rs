@@ -1,18 +1,29 @@
+use crate::HTTPHeader;
 use std::io::Write;
-use crate::proto::attachment::HTTPAttachment;
-use crate::proto::header::HTTPHeader;
-use crate::proto::mime_type::MimeType;
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub struct HTTPMessage {
-	pub http_version: String,
+	pub http_version: (u8, u8),
 	pub headers: Vec<HTTPHeader>,
-	pub mime_type: MimeType,
 	pub body: Vec<u8>,
-	pub attachments: Vec<HTTPAttachment>,
+}
+
+impl Default for HTTPMessage {
+	fn default() -> Self {
+		Self {
+			http_version: (1, 1),
+			headers: Vec::default(),
+			body: Vec::default(),
+		}
+	}
 }
 
 impl HTTPMessage {
+
+	pub fn write_headers(&self, sink: &mut dyn Write) {
+		todo!()
+	}
+
 	pub fn to_bytes(&self) -> Vec<u8> {
 		let mut headers_joined = String::with_capacity(
 			self.headers.capacity() + self.headers.len() * 4);
@@ -44,18 +55,5 @@ impl HTTPMessage {
 			.expect("writing bytes to vec");
 
 		ret
-	}
-}
-
-
-impl Default for HTTPMessage {
-	fn default() -> Self {
-		Self {
-			http_version: String::from("HTTP/1.1"),
-			headers: Vec::default(),
-			mime_type: MimeType::TextPlain,
-			body: Vec::default(),
-			attachments: Vec::default(),
-		}
 	}
 }

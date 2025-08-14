@@ -1,10 +1,9 @@
-use std::fmt::format;
+use http::HTTPHeader;
 use std::fs::File;
-use std::io::{stdout, BufRead, Read, Write};
-use std::net::{Shutdown, SocketAddr, TcpStream};
+use std::io::{Read, Write};
+use std::net::TcpStream;
 use std::path::Path;
-use std::str::FromStr;
-use http::{HTTPHeader, HTTPMessageInterface};
+
 // mod examples;
 
 struct Log {
@@ -36,22 +35,34 @@ fn main() {
 
 	let mut con = TcpStream::connect("http.badssl.com:80").unwrap();
 
-	let mut req = http::HTTPRequest::new("GET", http::Url::from_str("/")
-		.unwrap());
+	let mut req = http::HTTPRequest::default();
+	req.set_method("GET");
+	req.set_target("/");
 	req.headers_mut().push(HTTPHeader::new("host".into(), "http.badssl.com".into()));
 
 	con.write_all(req.to_bytes().as_slice()).unwrap();
 
 	let mut p_res = http::HTTPPartialResponse::default();
-	while !p_res.is_complete() {
+	while !p_res.is_finished() {
 		let mut buf = [0; 512];
 		let len = con.read(&mut buf).unwrap();
+		if len == 0 {
+			p_res.signal_connection_closed();
+			break;
+		}
 		p_res.push_bytes(&buf[..len]);
 	}
 
-	let res = p_res.into_response();
+	match p_res.into_response() {
+		Ok(res) => {
+			println!("{res}");
+		}
+		Err(e) => {
+			println!("failed: {e:?}");
+		}
+	};
 
-	println!("{res}");
+
 
 
 	// examples::run_examples();
@@ -66,7 +77,7 @@ fn main() {
 	// start_sample_server();
 }
 
-#[cfg(bench)]
+#[cfg(feature="bench")]
 fn test_collect_response() {
 
 	let mut req = HTTPRequest::default();
@@ -109,7 +120,7 @@ fn test_collect_response() {
 
 }
 
-#[cfg(bench)]
+#[cfg(feature="bench")]
 fn start_sample_server() {
 	print!("starting testing server on localhost:8500...");
 	let mut listener = std::net::TcpListener::bind("localhost:8500").unwrap();
@@ -135,7 +146,7 @@ fn start_sample_server() {
 	}
 }
 
-#[cfg(bench)]
+#[cfg(feature="bench")]
 fn handle_connection(
 	stream: &mut std::net::TcpStream,
 	peer: &SocketAddr,
@@ -209,7 +220,7 @@ fn handle_connection(
 	log.write("connection closed\n\n".as_bytes());
 }
 
-#[cfg(bench)]
+#[cfg(feature="bench")]
 fn create_response(req: &HTTPRequest) -> HTTPResponse {
 	println!("generating response");
 
@@ -323,7 +334,7 @@ fn create_response(req: &HTTPRequest) -> HTTPResponse {
 	response
 }
 
-#[cfg(bench)]
+#[cfg(feature="bench")]
 fn check_attachments(req: &HTTPRequest) {
 	println!("attachments: {:?}", &req.message.attachments);
 }

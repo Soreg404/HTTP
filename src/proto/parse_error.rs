@@ -1,6 +1,6 @@
 #[derive(Debug, Eq, PartialEq)]
 pub enum HTTPParseError {
-	IncompleteRequest,
+	IncompleteMessage,
 	IllegalByte,
 	// maybe BodyTooLong,
 	MalformedMessage(MalformedMessageKind)
@@ -17,4 +17,8 @@ pub enum MalformedMessageKind {
 	FirstLine,
 	UrlGeneral,
 	FirstLineStatusCode,
+	MalformedHeader,
+	DuplicateTransferEncoding,
+	MalformedChunkTrailer,
+	MalformedHTTPVersion,
 }
