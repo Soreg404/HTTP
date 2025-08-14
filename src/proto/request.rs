@@ -9,9 +9,9 @@ use crate::proto::Url;
 
 #[derive(Clone)]
 pub struct HTTPRequest {
-	pub method: String,
-	pub url: Url,
-	pub message: HTTPMessage,
+	pub(super) method: String,
+	pub(super) url: Url,
+	pub(super) message: HTTPMessage,
 }
 
 impl GetMessageRefInternal for HTTPRequest {
@@ -32,6 +32,15 @@ impl Default for HTTPRequest {
 }
 
 impl HTTPRequest {
+
+	pub fn new(method: &str, url: Url) -> Self {
+		Self {
+			method: method.to_string(),
+			url,
+			message: Default::default(),
+		}
+	}
+
 	pub fn to_bytes(&self) -> Vec<u8> {
 		let mut ret = Vec::<u8>::new();
 

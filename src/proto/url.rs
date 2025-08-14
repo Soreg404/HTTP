@@ -190,3 +190,30 @@ impl Debug for Url {
 		)
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[cfg(bench)]
+	#[test]
+	fn basic_url_from_str() {
+		let url = Url::from_str("/").unwrap();
+
+		assert_eq!(url.path, "/")
+	}
+
+	#[test]
+	fn basic_url_to_str() {
+		let url = Url::from_str("/").unwrap();
+
+		assert_eq!(url.to_string().as_str(), "/")
+	}
+
+	#[test]
+	fn test_get_request_target() {
+		let url = Url::from_str("/").unwrap();
+
+		assert_eq!(url.get_request_target(), "/");
+	}
+}

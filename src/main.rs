@@ -1,12 +1,10 @@
 use std::fmt::format;
 use std::fs::File;
 use std::io::{stdout, BufRead, Read, Write};
-use std::net::{Shutdown, SocketAddr};
+use std::net::{Shutdown, SocketAddr, TcpStream};
 use std::path::Path;
 use std::str::FromStr;
-
-use http::*;
-
+use http::{HTTPHeader, HTTPMessageInterface};
 // mod examples;
 
 struct Log {
@@ -35,11 +33,32 @@ impl Log {
 }
 
 fn main() {
+
+	let mut con = TcpStream::connect("http.badssl.com:80").unwrap();
+
+	let mut req = http::HTTPRequest::new("GET", http::Url::from_str("/")
+		.unwrap());
+	req.headers_mut().push(HTTPHeader::new("host".into(), "http.badssl.com".into()));
+
+	con.write_all(req.to_bytes().as_slice()).unwrap();
+
+	let mut p_res = http::HTTPPartialResponse::default();
+	while !p_res.is_complete() {
+		let mut buf = [0; 512];
+		let len = con.read(&mut buf).unwrap();
+		p_res.push_bytes(&buf[..len]);
+	}
+
+	let res = p_res.into_response();
+
+	println!("{res}");
+
+
 	// examples::run_examples();
 
 	// let server_thread_handle = std::thread::spawn(start_sample_server);
 
-	test_collect_response();
+	// test_collect_response();
 
 	// println!("main finished, waiting for server thread to join in.");
 	// server_thread_handle.join().unwrap();
@@ -47,6 +66,7 @@ fn main() {
 	// start_sample_server();
 }
 
+#[cfg(bench)]
 fn test_collect_response() {
 
 	let mut req = HTTPRequest::default();
@@ -303,6 +323,7 @@ fn create_response(req: &HTTPRequest) -> HTTPResponse {
 	response
 }
 
+#[cfg(bench)]
 fn check_attachments(req: &HTTPRequest) {
 	println!("attachments: {:?}", &req.message.attachments);
 }
