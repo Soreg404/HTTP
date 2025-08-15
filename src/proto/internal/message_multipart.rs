@@ -1,10 +1,10 @@
-use crate::HTTPHeader;
+use crate::{HTTPAttachment, HTTPHeader};
 
 #[derive(Debug, Clone)]
 pub struct HTTPMessageMultipart {
 	pub http_version: (u8, u8),
 	pub headers: Vec<HTTPHeader>,
-
+	pub attachments: Vec<HTTPAttachment>,
 }
 
 #[cfg(feature = "bench")]

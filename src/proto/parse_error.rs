@@ -21,4 +21,5 @@ pub enum MalformedMessageKind {
 	DuplicateTransferEncoding,
 	MalformedChunkTrailer,
 	MalformedHTTPVersion,
+	InvalidContentDisposition,
 }

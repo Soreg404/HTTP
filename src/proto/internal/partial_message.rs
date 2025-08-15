@@ -284,8 +284,7 @@ impl TryInto<HTTPMessageMultipart> for HTTPPartialMessage {
 			HTTPMessageMultipart {
 				http_version: self.with_http_version.unwrap_or((1, 0)),
 				headers: self.with_headers,
-
-				// body: self.with_body,
+				attachments: Default::default()
 			}
 		)
 	}

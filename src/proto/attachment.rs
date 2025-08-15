@@ -6,7 +6,7 @@ use std::str::FromStr;
 use crate::{HTTPAsciiStr, HTTPParseError};
 use crate::proto::internal::parser_header::ContentDisposition;
 
-#[derive(Default)]
+#[derive(Clone)]
 pub struct HTTPAttachment {
 	pub headers: Vec<HTTPHeader>,
 	pub body: Vec<u8>,
