@@ -161,8 +161,10 @@ impl HTTPPartialMessage {
 
 				match header.name.to_lowercase().as_str() {
 					"connection" => {
-						if self.transfer_encoding == Unspecified {
-							self.transfer_encoding = TillEOF;
+						if header.value == "close" {
+							if self.transfer_encoding == Unspecified {
+								self.transfer_encoding = TillEOF;
+							}
 						}
 					}
 					"transfer-encoding" => {
@@ -205,7 +207,10 @@ impl HTTPPartialMessage {
 			ParseState::Body => {
 				match self.transfer_encoding {
 					Unspecified => Some(Ok(Finished)),
-					TillEOF => todo!(),
+					TillEOF => {
+						let data = self.internal_buffer.take_all()?;
+						Some(Ok(CanAdvanceMore))
+					},
 					Chunked(None) => {
 						let line = self.internal_buffer.take_line()?;
 

@@ -43,6 +43,12 @@ impl HTTPResponse {
 	pub fn headers_mut(&mut self) -> &mut Vec<HTTPHeader> {
 		&mut self.message.headers
 	}
+	pub fn body(&self) -> &Vec<u8> {
+		&self.message.body
+	}
+	pub fn body_mut(&mut self) -> &mut Vec<u8> {
+		&mut self.message.body
+	}
 }
 
 impl HTTPResponse {

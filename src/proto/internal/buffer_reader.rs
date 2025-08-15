@@ -65,6 +65,13 @@ impl BufferReader {
 		self.read_head = self.bytes_taken;
 		Some(data)
 	}
+
+	pub fn take_all(&mut self) -> Option<&[u8]> {
+		let tmp = &self.internal_buffer[self.bytes_taken..];
+		self.bytes_taken = self.internal_buffer.len();
+		self.read_head = self.internal_buffer.len();
+		Some(tmp)
+	}
 }
 
 

@@ -1,7 +1,7 @@
-use http::HTTPHeader;
+use http::{HTTPHeader, HTTPPartialRequest, HTTPRequest, HTTPResponse};
 use std::fs::File;
 use std::io::{Read, Write};
-use std::net::TcpStream;
+use std::net::{Shutdown, SocketAddr, TcpStream};
 use std::path::Path;
 
 // mod examples;
@@ -32,6 +32,21 @@ impl Log {
 }
 
 fn main() {
+	// test_sample_request();
+
+	// examples::run_examples();
+
+	// let server_thread_handle = std::thread::spawn(start_sample_server);
+
+	// test_collect_response();
+
+	// println!("main finished, waiting for server thread to join in.");
+	// server_thread_handle.join().unwrap();
+
+	// start_sample_server();
+}
+
+fn test_sample_request() {
 	let mut con = TcpStream::connect("http.badssl.com:80").unwrap();
 
 	let mut req = http::HTTPRequest::default();
@@ -60,18 +75,6 @@ fn main() {
 			println!("failed: {e:?}");
 		}
 	};
-
-
-	// examples::run_examples();
-
-	// let server_thread_handle = std::thread::spawn(start_sample_server);
-
-	// test_collect_response();
-
-	// println!("main finished, waiting for server thread to join in.");
-	// server_thread_handle.join().unwrap();
-
-	// start_sample_server();
 }
 
 #[cfg(feature = "bench")]
@@ -114,10 +117,9 @@ fn test_collect_response() {
 	std::fs::write("favicon.png", response.message.body).unwrap()
 }
 
-#[cfg(feature = "bench")]
 fn start_sample_server() {
-	print!("starting testing server on localhost:8500...");
-	let mut listener = std::net::TcpListener::bind("localhost:8500").unwrap();
+	print!("starting testing server on localhost:8086...");
+	let mut listener = std::net::TcpListener::bind("localhost:8086").unwrap();
 	println!("done");
 
 	print!("initializing server session log file...");
@@ -140,7 +142,6 @@ fn start_sample_server() {
 	}
 }
 
-#[cfg(feature = "bench")]
 fn handle_connection(
 	stream: &mut std::net::TcpStream,
 	peer: &SocketAddr,
@@ -149,18 +150,19 @@ fn handle_connection(
 	println!("handling connection from {peer}");
 	log.write(format!("handling connection from {peer}\n").as_bytes());
 
-	let mut req = MessageParser::new_request();
+	let mut req = HTTPPartialRequest::default();
 
 	// let mut req = http::HTTPPartialRequest::default();
 
 	log.write("collecting request...\n<<<<<<<".as_bytes());
 	let mut buffer = [0; 0x400];
-	while !req.is_complete() {
+	while !req.is_finished() {
 		let n = stream.read(&mut buffer)
 			.expect("failed to read stream");
 
 		if n == 0 {
 			log.write(">>>>>>>\nfail: connection lost before request completion".as_bytes());
+			req.signal_connection_closed();
 			return;
 		}
 		log.write(&buffer[..n]);
@@ -180,15 +182,28 @@ fn handle_connection(
 	// 	}
 	// };
 	let req = req.into_request();
+
+	if req.is_err() {
+		log.write(format!("request parse error: {:?}\n", req.unwrap_err()).as_bytes());
+		return;
+	}
+
+	let req = req.unwrap();
+
 	log.write(format!("complete request debug view: {:?}\n", &req).as_bytes());
 
-	log.write("check request attachments (wip)...\n".as_bytes());
+	// log.write("check request attachments (wip)...\n".as_bytes());
 	// check_attachments(&req);
-	log.write("done check request attachments\n".as_bytes());
+	// log.write("done check request attachments\n".as_bytes());
 
 
 	log.write("creating response...\n".as_bytes());
-	let response = create_response(&req);
+	let response = {
+		let mut tmp = HTTPResponse::default();
+		tmp.headers_mut().push(HTTPHeader::new("content-type".into(), "text/plain".into()));
+		tmp.body_mut().extend_from_slice(b"hello world!");
+		tmp
+	};
 	log.write("done creating response\n".as_bytes());
 
 	log.write("response bytes\n<<<<<<<".as_bytes());
@@ -218,28 +233,18 @@ fn handle_connection(
 fn create_response(req: &HTTPRequest) -> HTTPResponse {
 	println!("generating response");
 
-	let response = match req.url.path.as_str() {
+	let response = match req.get_target() {
 		"/file-form" => {
 			match std::fs::read_to_string("html/file-form.html") {
 				Ok(html) => {
-					HTTPResponse {
-						status_code: 200,
-						message: HTTPMessage {
-							body: html.as_bytes().to_vec(),
-							..Default::default()
-						},
-						..HTTPResponse::default()
-					}
+					let mut response = HTTPResponse::default();
+					response.body_mut().extend_from_slice(html.as_bytes());
 				}
 				Err(e) => {
-					HTTPResponse {
-						status_code: 500,
-						message: HTTPMessage {
-							body: b"failed to load html/file-form.html".to_vec(),
-							..Default::default()
-						},
-						..HTTPResponse::default()
-					}
+					let mut response = HTTPResponse::default();
+					response.set_status_code(500);
+					response.set_status_text(HTTPResponse::status_code_to_str(500));
+					response.body_mut().extend_from_slice(b"failed to load html/file-form.html");
 				}
 			}
 		}
