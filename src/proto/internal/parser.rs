@@ -1,8 +1,10 @@
+use std::ops::Deref;
 use crate::proto::header::HTTPHeader;
 use crate::proto::parse_error::HTTPParseError::{IllegalByte, MalformedMessage};
 use crate::proto::parse_error::{HTTPParseError, MalformedMessageKind};
 use std::str::FromStr;
 use MalformedMessageKind::{FirstLine, FirstLineStatusCode, MalformedHTTPVersion};
+use crate::HTTPAsciiStr;
 
 pub struct FirstLineRequest {
 	pub method: String,
@@ -12,7 +14,7 @@ pub struct FirstLineRequest {
 impl TryFrom<&[u8]> for FirstLineRequest {
 	type Error = HTTPParseError;
 	fn try_from(line: &[u8]) -> Result<Self, Self::Error> {
-		let line = validate_http_line_bytes(line)?;
+		let line = HTTPAsciiStr::try_from(line)?;
 
 		let line_parts = line
 			.split_whitespace()
@@ -56,7 +58,7 @@ impl TryFrom<&[u8]> for FirstLineResponse {
 	type Error = HTTPParseError;
 
 	fn try_from(line: &[u8]) -> Result<Self, Self::Error> {
-		let line = validate_http_line_bytes(line)?;
+		let line = HTTPAsciiStr::try_from(line)?;
 
 		let line_parts = line
 			.split_whitespace()
@@ -121,20 +123,10 @@ pub fn parse_request_first_line(line_bytes: &[u8]) -> Result<RequestFirstLine, H
 	}
 }
 
-pub fn validate_http_line_bytes(line_bytes: &[u8]) -> Result<&str, HTTPParseError> {
-	for b in line_bytes.iter().cloned() {
-		if !b.is_ascii_graphic() && b != b' ' {
-			return Err(IllegalByte);
-		}
-	}
-	Ok(
-		unsafe { str::from_utf8_unchecked(line_bytes) }
-	)
-}
 
 pub fn header_from_line_bytes(line_bytes: &[u8]) -> Result<HTTPHeader, HTTPParseError> {
-	let line = validate_http_line_bytes(line_bytes)?;
-	HTTPHeader::from_str(line)
+	let line = HTTPAsciiStr::try_from(line_bytes)?;
+	HTTPHeader::from_str(line.deref())
 }
 
 

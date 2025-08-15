@@ -1,5 +1,7 @@
+use std::io::Read;
 use crate::proto::internal::partial_message::HTTPPartialMessage;
 use crate::{HTTPParseError, HTTPResponse};
+use crate::proto::response_multipart::HTTPResponseMultipart;
 
 #[derive(Default)]
 pub struct HTTPPartialResponse {
@@ -40,6 +42,19 @@ impl HTTPPartialResponse {
 	}
 }
 
+impl HTTPPartialResponse {
+	pub fn write_from(&mut self, sink: &mut dyn Read) {
+		let mut buf = [0; 0x100];
+		let len = sink.read(&mut buf).unwrap();
+
+		if len == 0 {
+			self.signal_connection_closed();
+		} else {
+			self.push_bytes(&buf[..len]);
+		}
+	}
+}
+
 impl TryInto<HTTPResponse> for HTTPPartialResponse {
 	type Error = HTTPParseError;
 	fn try_into(self) -> Result<HTTPResponse, Self::Error> {
@@ -55,8 +70,27 @@ impl TryInto<HTTPResponse> for HTTPPartialResponse {
 	}
 }
 
+impl TryInto<HTTPResponseMultipart> for HTTPPartialResponse {
+	type Error = HTTPParseError;
+	fn try_into(self) -> Result<HTTPResponseMultipart, Self::Error> {
+		let message_multipart = self.partial_message.try_into()?;
+
+		Ok(
+			HTTPResponseMultipart {
+				status_code: self.status_code,
+				status_text: self.status_text,
+				message_multipart,
+			}
+		)
+	}
+}
+
 impl HTTPPartialResponse {
 	pub fn into_response(self) -> Result<HTTPResponse, HTTPParseError> {
+		self.try_into()
+	}
+
+	pub fn into_response_multipart(self) -> Result<HTTPResponseMultipart, HTTPParseError> {
 		self.try_into()
 	}
 }

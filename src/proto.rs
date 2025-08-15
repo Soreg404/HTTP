@@ -7,9 +7,12 @@ mod mime_type;
 mod header;
 mod attachment;
 mod request;
+mod request_multipart;
 mod partial_request;
 mod response;
+mod response_multipart;
 mod partial_response;
+
 pub use attachment::HTTPAttachment;
 pub use header::HTTPHeader;
 pub use mime_type::MimeType;
@@ -21,3 +24,6 @@ pub use request::HTTPRequest;
 pub use response::HTTPResponse;
 #[cfg(feature = "bench")]
 pub use url::Url;
+
+
+pub use internal::ascii_str::HTTPAsciiStr;

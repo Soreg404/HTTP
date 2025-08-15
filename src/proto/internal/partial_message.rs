@@ -1,16 +1,18 @@
 use super::{buffer_reader::BufferReader, message::HTTPMessage};
-use crate::proto::internal::parser::{validate_http_line_bytes, FirstLineRequest, FirstLineResponse};
+use crate::proto::internal::parser::{FirstLineRequest, FirstLineResponse};
 use crate::proto::internal::partial_message::AdvanceResult::{CanAdvanceMore, Finished};
 use crate::proto::internal::partial_message::TransferEncoding::{Chunked, TillEOF, Unspecified};
 use crate::proto::parse_error::HTTPParseError::MalformedMessage;
 use crate::proto::parse_error::{HTTPParseError, MalformedMessageKind};
-use crate::HTTPHeader;
+use crate::{HTTPHeader, HTTPAsciiStr};
 use crate::MalformedMessageKind::{DuplicateTransferEncoding, MalformedHeader};
 use std::io::Write;
+use std::ops::Deref;
 use std::str::FromStr;
 use HTTPParseError::IncompleteMessage;
 use MalformedMessageKind::MalformedChunkTrailer;
 use TransferEncoding::ContentLength;
+use crate::proto::internal::message_multipart::HTTPMessageMultipart;
 
 #[derive(Default, PartialEq, Debug)]
 enum ParseState {
@@ -142,7 +144,7 @@ impl HTTPPartialMessage {
 			ParseState::Headers => {
 				let line = self.internal_buffer.take_line()?;
 
-				let line = match validate_http_line_bytes(line) {
+				let line = match HTTPAsciiStr::try_from(line) {
 					Ok(line) => line,
 					Err(e) => return Some(Err(e))
 				};
@@ -214,12 +216,12 @@ impl HTTPPartialMessage {
 					Chunked(None) => {
 						let line = self.internal_buffer.take_line()?;
 
-						let line = match validate_http_line_bytes(line) {
+						let line = match HTTPAsciiStr::try_from(line) {
 							Ok(line) => line,
 							Err(e) => return Some(Err(e))
 						};
 
-						let chunk_size = match usize::from_str_radix(line, 16) {
+						let chunk_size = match usize::from_str_radix(line.deref(), 16) {
 							Ok(chunk_size) => chunk_size,
 							Err(e) => return Some(Err(
 								MalformedMessage(MalformedChunkTrailer)))
@@ -265,6 +267,25 @@ impl TryInto<HTTPMessage> for HTTPPartialMessage {
 				http_version: self.with_http_version.unwrap_or((1, 0)),
 				headers: self.with_headers,
 				body: self.with_body,
+			}
+		)
+	}
+}
+
+impl TryInto<HTTPMessageMultipart> for HTTPPartialMessage {
+	type Error = HTTPParseError;
+
+	fn try_into(self) -> Result<HTTPMessageMultipart, Self::Error> {
+		if let Some(Err(e)) = self.parse_result {
+			return Err(e);
+		}
+
+		Ok(
+			HTTPMessageMultipart {
+				http_version: self.with_http_version.unwrap_or((1, 0)),
+				headers: self.with_headers,
+
+				// body: self.with_body,
 			}
 		)
 	}

@@ -1,13 +1,16 @@
+use std::ops::Range;
 use crate::proto::parse_error::HTTPParseError::MalformedMessage;
 use crate::proto::parse_error::{HTTPParseError, MalformedMessageKind};
 use std::str::FromStr;
 use MalformedMessageKind::MalformedHeader;
+use crate::HTTPAsciiStr;
+use crate::proto::internal::ascii_str::HTTPAsciiString;
 
 // todo: avoid self-referential and avoid creating new Strings for headers in partial message
 #[derive(Debug, Eq, PartialEq)]
-pub(super) struct HTTPHeaderRef<'a> {
-	pub name: &'a str,
-	pub value: &'a str,
+pub(super) struct HTTPHeaderWeakSlice {
+	pub name: Range<usize>,
+	pub value: Range<usize>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -43,15 +46,6 @@ impl FromStr for HTTPHeader {
 				}
 			}
 			None => Err(MalformedMessage(MalformedHeader))
-		}
-	}
-}
-
-impl Into<HTTPHeader> for HTTPHeaderRef<'_> {
-	fn into(self) -> HTTPHeader {
-		HTTPHeader {
-			name: self.name.to_owned(),
-			value: self.value.to_owned(),
 		}
 	}
 }

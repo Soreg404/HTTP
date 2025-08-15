@@ -22,17 +22,17 @@ impl Default for HTTPRequest {
 }
 
 impl HTTPRequest {
-	pub fn set_method(&mut self, method: &str) {
-		self.method = method.to_string();
+	pub fn method(&self) -> &str {
+		&self.method
 	}
-	pub fn get_method(&self) -> &str {
-		self.method.as_str()
+	pub fn method_mut(&mut self) -> &mut String {
+		&mut self.method
 	}
-	pub fn set_target(&mut self, target: &str) {
-		self.target = target.to_string();
+	pub fn target(&self) -> &str {
+		&self.target
 	}
-	pub fn get_target(&self) -> &str {
-		self.target.as_str()
+	pub fn target_mut(&mut self) -> &mut String {
+		&mut self.target
 	}
 }
 

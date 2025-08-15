@@ -1,6 +1,7 @@
-use http::{HTTPHeader, HTTPPartialRequest, HTTPRequest, HTTPResponse};
+use http::{HTTPHeader, HTTPPartialRequest, HTTPRequest, HTTPResponse, HTTPAsciiStr};
 use std::fs::File;
 use std::io::{Read, Write};
+use std::mem::transmute;
 use std::net::{Shutdown, SocketAddr, TcpStream};
 use std::path::Path;
 
@@ -32,7 +33,8 @@ impl Log {
 }
 
 fn main() {
-	// test_sample_request();
+
+	test_sample_request();
 
 	// examples::run_examples();
 
@@ -49,22 +51,16 @@ fn main() {
 fn test_sample_request() {
 	let mut con = TcpStream::connect("http.badssl.com:80").unwrap();
 
-	let mut req = http::HTTPRequest::default();
-	req.set_method("GET");
-	req.set_target("/");
-	req.headers_mut().push(HTTPHeader::new("host".into(), "http.badssl.com".into()));
+	let mut req = HTTPRequest::default();
+	*req.method_mut() = "GET".to_string();
+	*req.target_mut() = "/".to_string();
+	req.headers_mut().push(HTTPHeader::new("host", "http.badssl.com"));
 
 	con.write_all(req.to_bytes().as_slice()).unwrap();
 
 	let mut p_res = http::HTTPPartialResponse::default();
 	while !p_res.is_finished() {
-		let mut buf = [0; 512];
-		let len = con.read(&mut buf).unwrap();
-		if len == 0 {
-			p_res.signal_connection_closed();
-			break;
-		}
-		p_res.push_bytes(&buf[..len]);
+		p_res.write_from(&mut con);
 	}
 
 	match p_res.into_response() {

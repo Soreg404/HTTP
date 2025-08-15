@@ -22,6 +22,30 @@ impl HTTPMessage {
 	pub fn write_headers(&self, sink: &mut dyn Write) {
 		todo!()
 	}
+	pub fn write_preamble(&self, sink: &mut dyn Write) {
+		todo!()
+	}
+
+	pub fn headers_to_bytes(&self) -> Vec<u8> { todo!() }
+	pub fn body_to_bytes(&self) -> Result<Vec<u8>, ()> {
+		// what to do when body is chunked and/or doesn't have
+		// content-length known?
+		// also, return already compressed or?
+		todo!()
+	}
+
+
+
+
+	pub fn set_body(&mut self) { todo!() }
+	pub fn push_chunk(&mut self) {
+		// check if header "transfer-encoding (TE): chunked" present
+		todo!()
+	}
+	pub fn compress_or_with_compression(&mut self) {
+		// enum AUTO or PREFER(GZIP|BR) or smthn
+		todo!()
+	}
 
 	pub fn to_bytes(&self) -> Vec<u8> {
 		let mut headers_joined = String::with_capacity(

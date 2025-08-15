@@ -1,5 +1,6 @@
 use crate::proto::internal::partial_message::HTTPPartialMessage;
 use crate::{HTTPParseError, HTTPRequest};
+use std::io::Read;
 
 #[derive(Default)]
 pub struct HTTPPartialRequest {
@@ -37,6 +38,19 @@ impl HTTPPartialRequest {
 
 	pub fn signal_connection_closed(&mut self) {
 		self.partial_message.signal_connection_closed()
+	}
+}
+
+impl HTTPPartialRequest {
+	pub fn write_from(&mut self, sink: &mut dyn Read) {
+		let mut buf = [0; 0x100];
+		let len = sink.read(&mut buf).unwrap();
+
+		if len == 0 {
+			self.signal_connection_closed();
+		} else {
+			self.push_bytes(&buf[..len]);
+		}
 	}
 }
 

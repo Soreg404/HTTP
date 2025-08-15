@@ -22,17 +22,17 @@ impl Default for HTTPResponse {
 }
 
 impl HTTPResponse {
-	pub fn set_status_code(&mut self, status_code: u16) {
-		self.status_code = status_code;
+	pub fn status_code(&self) -> &u16 {
+		&self.status_code
 	}
-	pub fn get_status_code(&self) -> u16 {
-		self.status_code
+	pub fn status_code_mut(&mut self) -> &mut u16 {
+		&mut self.status_code
 	}
-	pub fn set_status_text(&mut self, status_text: &str) {
-		self.status_text = status_text.to_string();
+	pub fn status_text(&self) -> &str {
+		&self.status_text
 	}
-	pub fn get_status_text(&self) -> &str {
-		self.status_text.as_str()
+	pub fn status_text_mut(&mut self) -> &mut String {
+		&mut self.status_text
 	}
 }
 
