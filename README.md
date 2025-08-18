@@ -88,3 +88,4 @@ with fields:
 
 ## builder for `Request` and `Response` is needed, and Multiparts are a separate thing
 ## Nah, I take that back, dedicated builder is not needed, `with_code` or `with_headers` will (probably) do
+## or, an idea for later, first build the Preamble, then convert to "only append to body, headers readonly" thing
