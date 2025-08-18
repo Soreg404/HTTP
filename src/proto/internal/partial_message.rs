@@ -1,4 +1,4 @@
-use super::{buffer_reader::BufferReader, message::HTTPMessage};
+use super::{buffer_reader::BufferReaderOwned, message::HTTPMessage};
 use crate::proto::internal::parser::{FirstLineRequest, FirstLineResponse};
 use crate::proto::internal::partial_message::AdvanceResult::{CanAdvanceMore, Finished};
 use crate::proto::internal::partial_message::TransferEncoding::{Chunked, TillEOF, Unspecified};
@@ -34,7 +34,7 @@ enum TransferEncoding {
 #[derive(Default)]
 pub struct HTTPPartialMessage {
 	parse_result: Option<Result<(), HTTPParseError>>,
-	internal_buffer: BufferReader,
+	internal_buffer: BufferReaderOwned,
 
 	state: ParseState,
 
@@ -276,16 +276,7 @@ impl TryInto<HTTPMessageMultipart> for HTTPPartialMessage {
 	type Error = HTTPParseError;
 
 	fn try_into(self) -> Result<HTTPMessageMultipart, Self::Error> {
-		if let Some(Err(e)) = self.parse_result {
-			return Err(e);
-		}
-
-		Ok(
-			HTTPMessageMultipart {
-				http_version: self.with_http_version.unwrap_or((1, 0)),
-				headers: self.with_headers,
-				attachments: Default::default()
-			}
-		)
+		let tmp: HTTPMessage = self.try_into()?;
+		HTTPMessageMultipart::try_from(tmp)
 	}
 }

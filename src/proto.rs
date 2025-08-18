@@ -22,6 +22,8 @@ pub use partial_request::HTTPPartialRequest;
 pub use partial_response::HTTPPartialResponse;
 pub use request::HTTPRequest;
 pub use response::HTTPResponse;
+pub use request_multipart::HTTPRequestMultipart;
+pub use response_multipart::HTTPResponseMultipart;
 #[cfg(feature = "bench")]
 pub use url::Url;
 

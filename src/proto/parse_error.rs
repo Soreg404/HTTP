@@ -4,6 +4,8 @@ pub enum HTTPParseError {
 	IllegalByte,
 	// maybe BodyTooLong,
 	MalformedMessage(MalformedMessageKind),
+	MissingContentTypeHeader,
+	MissingMultipartBoundary,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -22,4 +24,5 @@ pub enum MalformedMessageKind {
 	MalformedChunkTrailer,
 	MalformedHTTPVersion,
 	InvalidContentDisposition,
+	MalformedMultipartBody,
 }

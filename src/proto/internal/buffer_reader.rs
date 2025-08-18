@@ -1,8 +1,27 @@
 use std::io::Write;
 
 #[derive(Default)]
-pub struct BufferReader {
+pub struct BufferReaderOwned {
 	internal_buffer: Vec<u8>,
+	meta: BufferReaderMeta
+}
+
+pub struct BufferReaderRef<'a> {
+	internal_buffer: &'a [u8],
+	meta: BufferReaderMeta
+}
+
+impl<'a> BufferReaderRef<'a> {
+	pub fn new(wrapped_buffer: &'a [u8]) -> Self {
+		Self {
+			internal_buffer: wrapped_buffer,
+			meta: BufferReaderMeta::default()
+		}
+	}
+}
+
+#[derive(Default, Debug)]
+struct BufferReaderMeta {
 	read_head: usize,
 	bytes_taken: usize,
 }
@@ -12,7 +31,7 @@ enum LineEnding {
 	CRLF,
 }
 
-impl Write for BufferReader {
+impl Write for BufferReaderOwned {
 	fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
 		self.internal_buffer.extend_from_slice(buf);
 		Ok(buf.len())
@@ -21,10 +40,47 @@ impl Write for BufferReader {
 	fn flush(&mut self) -> std::io::Result<()> { Ok(()) }
 }
 
-impl BufferReader {
+impl BufferReaderOwned {
 	pub fn take_line(&mut self) -> Option<&[u8]> {
-		while self.read_head < self.internal_buffer.len() {
-			let line = &self.internal_buffer[self.bytes_taken..=self.read_head];
+		self.meta.take_line(self.internal_buffer.as_slice())
+	}
+
+	pub fn take_until(&mut self, sequence: &[u8]) -> Option<&[u8]> {
+		self.meta.take_until(self.internal_buffer.as_slice(), sequence)
+	}
+
+	pub fn take_exact(&mut self, n_bytes: usize) -> Option<&[u8]> {
+		self.meta.take_exact(self.internal_buffer.as_slice(), n_bytes)
+	}
+
+	pub fn take_all(&mut self) -> Option<&[u8]> {
+		self.meta.take_all(self.internal_buffer.as_slice())
+	}
+}
+
+impl BufferReaderRef<'_> {
+	pub fn take_line(&mut self) -> Option<&[u8]> {
+		self.meta.take_line(self.internal_buffer)
+	}
+
+	pub fn take_until(&mut self, sequence: &[u8]) -> Option<&[u8]> {
+		self.meta.take_until(self.internal_buffer, sequence)
+	}
+
+	pub fn take_exact(&mut self, n_bytes: usize) -> Option<&[u8]> {
+		self.meta.take_exact(self.internal_buffer, n_bytes)
+	}
+
+	// todo: make it not return Option
+	pub fn take_all(&mut self) -> Option<&[u8]> {
+		self.meta.take_all(self.internal_buffer)
+	}
+}
+
+impl<'a> BufferReaderMeta {
+	fn take_line(&mut self, buffer: &'a [u8]) -> Option<&'a [u8]> {
+		while self.read_head < buffer.len() {
+			let line = &buffer[self.bytes_taken..=self.read_head];
 			self.read_head += 1;
 
 			if let Some(line) = line.strip_suffix(b"\n") {
@@ -38,9 +94,9 @@ impl BufferReader {
 		None
 	}
 
-	pub fn take_until(&mut self, sequence: &[u8]) -> Option<&[u8]> {
-		while self.read_head < self.internal_buffer.len() {
-			let line = &self.internal_buffer[self.bytes_taken..=self.read_head];
+	pub fn take_until(&mut self, buffer: &'a [u8], sequence: &[u8]) -> Option<&'a [u8]> {
+		while self.read_head < buffer.len() {
+			let line = &buffer[self.bytes_taken..=self.read_head];
 			self.read_head += 1;
 
 			if let Some(line) = line.strip_suffix(sequence) {
@@ -52,12 +108,12 @@ impl BufferReader {
 		None
 	}
 
-	pub fn take_exact(&mut self, n_bytes: usize) -> Option<&[u8]> {
+	pub fn take_exact(&mut self, buffer: &'a [u8], n_bytes: usize) -> Option<&'a [u8]> {
 		if n_bytes == 0 {
 			return Some([].as_slice());
 		}
 
-		let data = self.internal_buffer.get(
+		let data = buffer.get(
 			self.bytes_taken..self.bytes_taken + n_bytes
 		)?;
 
@@ -66,10 +122,10 @@ impl BufferReader {
 		Some(data)
 	}
 
-	pub fn take_all(&mut self) -> Option<&[u8]> {
-		let tmp = &self.internal_buffer[self.bytes_taken..];
-		self.bytes_taken = self.internal_buffer.len();
-		self.read_head = self.internal_buffer.len();
+	pub fn take_all(&mut self, buffer: &'a [u8]) -> Option<&'a [u8]> {
+		let tmp = &buffer[self.bytes_taken..];
+		self.bytes_taken = buffer.len();
+		self.read_head = buffer.len();
 		Some(tmp)
 	}
 }
@@ -81,7 +137,7 @@ mod tests {
 
 	#[test]
 	fn take_lines() {
-		let mut buffer = BufferReader::default();
+		let mut buffer = BufferReaderOwned::default();
 
 		buffer.write_all("line 1".as_bytes()).unwrap();
 		assert_eq!(buffer.take_line(), None);
@@ -94,7 +150,7 @@ mod tests {
 
 	#[test]
 	fn take_until() {
-		let mut buffer = BufferReader::default();
+		let mut buffer = BufferReaderOwned::default();
 		let sequence = "--sequence".as_bytes();
 		buffer.write_all("some content".as_bytes()).unwrap();
 		assert_eq!(buffer.take_until(sequence), None);
@@ -109,11 +165,11 @@ mod tests {
 
 	#[test]
 	fn take_exact() {
-		let mut buffer = BufferReader::default();
+		let mut buffer = BufferReaderOwned::default();
 		buffer.write_all("data".as_bytes()).unwrap();
 		assert_eq!(buffer.take_exact(4), Some("data".as_bytes()));
 
-		let mut buffer = BufferReader::default();
+		let mut buffer = BufferReaderOwned::default();
 
 		buffer.write_all("data".as_bytes()).unwrap();
 		assert_eq!(buffer.take_exact(0), Some([].as_slice()));

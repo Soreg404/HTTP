@@ -26,6 +26,7 @@ fn strip_quotes(s: &str) -> &str {
 		.strip_suffix('"').unwrap_or(s)
 }
 
+// todo: make it TryFrom<HTTPHeader>
 impl<'a> TryFrom<&'a str> for ContentDisposition<'a> {
 	type Error = HTTPParseError;
 	fn try_from(header_value: &'a str) -> Result<Self, Self::Error> {
@@ -94,3 +95,47 @@ fn parse_content_disposition() {
 		Ok(Self { name: "", filename: None })
 	}
 }*/
+
+
+#[derive(Debug, PartialEq)]
+pub struct ContentType<'a> {
+	pub media_type: &'a str,
+	pub boundary: Option<&'a str>,
+}
+
+// todo: needs improvement
+impl<'a> TryFrom<&'a str> for ContentType<'a> {
+	type Error = HTTPParseError;
+	fn try_from(value: &'a str) -> Result<Self, Self::Error> {
+		let (media_type, boundary) = split_on(value, ';');
+
+		let boundary = split_on(boundary, '=').1;
+
+		if media_type.eq_ignore_ascii_case("multipart/form-data") {
+			Ok(ContentType {
+				media_type,
+				boundary: Some(boundary),
+			})
+		} else {
+			Ok(ContentType {
+				media_type,
+				boundary: None,
+			})
+		}
+	}
+}
+
+#[test]
+fn parse_content_type() {
+	assert_eq!(
+		ContentType::try_from(
+			"multipart/form-data; boundary=--hello"
+		),
+		Ok(
+			ContentType {
+				media_type: "multipart/form-data",
+				boundary: Some("--hello"),
+			}
+		)
+	)
+}

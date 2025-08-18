@@ -1,4 +1,4 @@
-use http::{HTTPHeader, HTTPPartialRequest, HTTPRequest, HTTPResponse, HTTPAsciiStr};
+use http::{HTTPHeader, HTTPPartialRequest, HTTPRequest, HTTPResponse, HTTPAsciiStr, HTTPRequestMultipart};
 use std::fs::File;
 use std::io::{Read, Write};
 use std::mem::transmute;
@@ -34,7 +34,9 @@ impl Log {
 
 fn main() {
 
-	test_sample_request();
+	test_attachments();
+
+	// test_sample_request();
 
 	// examples::run_examples();
 
@@ -48,6 +50,76 @@ fn main() {
 	// start_sample_server();
 }
 
+fn test_attachments() {
+	let mut seslog = std::fs::OpenOptions::new()
+		.write(true)
+		.create(true)
+		.open("../attachments.png")
+		.unwrap();
+
+	seslog.write_all(b"handler\n").unwrap();
+
+	start_sample_server(|stream, _peer| {
+		let mut partial_request = http::HTTPPartialRequest::default();
+		while !partial_request.is_finished() {
+			partial_request.write_from(stream);
+		}
+		let request = match partial_request.into_request() {
+			Ok(v) => v,
+			Err(e) => {
+				seslog.write_all(format!("collecting request failed: {e:?}\n").as_bytes()).unwrap();
+				return;
+			}
+		};
+
+		let response: HTTPResponse = match request.target() {
+			"/" => {
+				let mut tmp = HTTPResponse::default();
+				tmp.headers_mut().push(HTTPHeader::new("content-type", "text/html"));
+				tmp.body_mut().extend_from_slice(
+					b"<form method=\"post\" action=\"/result\" enctype=\"multipart/form-data\">\
+					<input type=\"file\" name=\"f\">\
+					<button>submit</button>\
+					</form>"
+				);
+				tmp
+			}
+			"/result" => {
+				let multipart_request = match
+					HTTPRequestMultipart::try_from(request) {
+						Ok(v) => v,
+						Err(e) => {
+							seslog.write_all(
+								format!("failed to get attachments: {e:?}\n").as_bytes())
+								.unwrap();
+							return;
+						}
+					};
+
+
+				seslog.write_all(b"attachments:\n").unwrap();
+				for att in multipart_request.attachments() {
+					for header in &att.headers {
+						seslog.write_all(format!("{header:?}\n").as_bytes()).unwrap()
+					}
+					seslog.write_all(b"\n").unwrap();
+					seslog.write_all(att.body.as_slice()).unwrap();
+					seslog.write_all(b"\n").unwrap();
+				}
+
+				let mut tmp = HTTPResponse::default();
+				tmp.headers_mut().push(HTTPHeader::new("content-type", "text/plain"));
+				tmp.body_mut().extend_from_slice(b"ok");
+				tmp
+			}
+			_ => HTTPResponse::quick(404),
+		};
+
+		stream.write_all(response.to_bytes().as_slice()).unwrap()
+	});
+}
+
+#[cfg(feature = "bench")]
 fn test_sample_request() {
 	let mut con = TcpStream::connect("http.badssl.com:80").unwrap();
 
@@ -113,24 +185,16 @@ fn test_collect_response() {
 	std::fs::write("favicon.png", response.message.body).unwrap()
 }
 
-fn start_sample_server() {
+fn start_sample_server(mut handler: impl FnMut(&mut TcpStream, SocketAddr)) {
 	print!("starting testing server on localhost:8086...");
 	let mut listener = std::net::TcpListener::bind("localhost:8086").unwrap();
-	println!("done");
-
-	print!("initializing server session log file...");
-	let mut log = Log::new(Path::new("server-session.log"))
-		.unwrap_or_else(|e| {
-			println!("failed");
-			panic!("{e}");
-		});
 	println!("done");
 
 	println!("sample server loop starts.");
 	loop {
 		match listener.accept() {
 			Ok((mut stream, peer))
-			=> handle_connection(&mut stream, &peer, &mut log),
+			=> handler(&mut stream, peer),
 
 			Err(e)
 			=> println!("server failed to accept connection: {:?}", e)
@@ -138,6 +202,7 @@ fn start_sample_server() {
 	}
 }
 
+#[cfg(feature = "bench")]
 fn handle_connection(
 	stream: &mut std::net::TcpStream,
 	peer: &SocketAddr,
