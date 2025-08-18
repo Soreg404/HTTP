@@ -87,3 +87,4 @@ with fields:
 
 
 ## builder for `Request` and `Response` is needed, and Multiparts are a separate thing
+## Nah, I take that back, dedicated builder is not needed, `with_code` or `with_headers` will (probably) do
