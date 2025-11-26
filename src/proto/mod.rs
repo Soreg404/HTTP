@@ -28,4 +28,4 @@ pub use response_multipart::HTTPResponseMultipart;
 pub use url::Url;
 
 
-pub use internal::ascii_str::HTTPAsciiStr;
+// pub use internal::ascii_str::HTTPAsciiStr;
