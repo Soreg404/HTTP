@@ -1,9 +1,8 @@
 use std::io::{Read, Write};
 use std::net::TcpListener;
-use http::{HTTPParseError, HTTPRequest};
 
 fn main() {
-let listener = TcpListener::bind("[::1]:48002").unwrap();
+	let listener = TcpListener::bind("[::1]:48002").unwrap();
 	'accept_connection: loop {
 		let (mut tcp_stream, peer) = listener.accept()
 			.unwrap();
@@ -11,7 +10,7 @@ let listener = TcpListener::bind("[::1]:48002").unwrap();
 		println!("accepted connection from {:#?}", peer);
 		println!("(local address: {:#?})", tcp_stream.local_addr());
 
-		let mut partial_request = http::HTTPPartialRequest::default();
+		let mut partial_request = http::RequestCollector::new();
 
 		'collect_request: loop {
 			let mut buff = [0; 0xff];
@@ -34,7 +33,7 @@ let listener = TcpListener::bind("[::1]:48002").unwrap();
 			}
 		}
 
-		let request= match partial_request.into_request() {
+		let request = match partial_request.into_request() {
 			Ok(v) => v,
 			Err(e) => {
 				eprintln!("http request parse error: {e:#?}");
