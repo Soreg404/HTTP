@@ -2,7 +2,7 @@ use std::io::{Read, Write};
 use std::net::TcpListener;
 
 fn main() {
-	let listener = TcpListener::bind("[::1]:48002").unwrap();
+	let listener = TcpListener::bind("[::1]:48001").unwrap();
 	'accept_connection: loop {
 		let (mut tcp_stream, peer) = listener.accept()
 			.unwrap();
@@ -10,7 +10,8 @@ fn main() {
 		println!("accepted connection from {:#?}", peer);
 		println!("(local address: {:#?})", tcp_stream.local_addr());
 
-		let mut partial_request = http::RequestCollector::new();
+
+		let mut partial_request = http::request::Collector::new();
 
 		'collect_request: loop {
 			let mut buff = [0; 0xff];
@@ -20,7 +21,11 @@ fn main() {
 						continue 'accept_connection;
 					}
 
-					partial_request.push_bytes(&buff[..n]);
+					println!("pushing bytes: {:?}", String::from_utf8_lossy(&buff[..n]));
+
+					let n = partial_request.push_bytes(&buff[..n]);
+
+					println!("consumed {n} bytes");
 				}
 				Err(e) => {
 					eprintln!("tcp_stream.read() error: {e:#?}");
@@ -29,6 +34,7 @@ fn main() {
 			}
 
 			if partial_request.is_finished() {
+				println!("is finished");
 				break 'collect_request;
 			}
 		}
@@ -41,7 +47,7 @@ fn main() {
 			}
 		};
 
-		println!("got request: {:#?}", request);
+		dbg!(request);
 
 		tcp_stream.write_all(b"HTTP/1.1 200 OK\r\n\r\n").unwrap()
 	}

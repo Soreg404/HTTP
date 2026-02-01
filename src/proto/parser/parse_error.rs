@@ -1,28 +1,6 @@
-#[derive(Debug, Eq, PartialEq)]
-pub enum HTTPParseError {
-	IncompleteMessage,
-	IllegalByte,
-	// maybe BodyTooLong,
-	MalformedMessage(MalformedMessageKind),
-	MissingContentTypeHeader,
-	MissingMultipartBoundary,
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub enum MalformedMessageKind {
-	Other,
-	MimetypeMissingBoundaryParam,
-	MimetypeParamMissingEqualSign,
-	MultipartFirstLineBoundary,
-	HeaderContentDisposition,
-	MultipartEndsWithInvalidBytes,
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum ParseError {
+	TBD,
 	FirstLine,
-	UrlGeneral,
-	FirstLineStatusCode,
-	MalformedHeader,
-	DuplicateTransferEncoding,
-	MalformedChunkTrailer,
-	MalformedHTTPVersion,
-	InvalidContentDisposition,
-	MalformedMultipartBody,
+	HeaderLine
 }
