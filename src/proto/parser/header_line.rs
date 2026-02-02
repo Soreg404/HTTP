@@ -22,6 +22,7 @@ fn valid_first_byte_of_field_name(c: &u8) -> bool {
 	c.is_ascii_alphanumeric()
 		|| match c {
 		// todo: what are the allowed characters here?
+		b'_' => true,
 		_ => false
 	}
 }
@@ -29,6 +30,7 @@ fn valid_first_byte_of_field_name(c: &u8) -> bool {
 fn valid_nth_byte_of_field_name(c: u8) -> bool {
 	c.is_ascii_alphanumeric()
 		|| match c {
+		b'-' | b'_' => true,
 		_ => false
 	}
 }
@@ -52,7 +54,7 @@ pub fn parse_header_line(line: &[u8]) -> ParseResult {
 
 	let mut filed_name_end_index = 0usize;
 	let mut field_value_start_index = 0usize;
-	let mut last_non_ws_index = 0usize;
+	let mut last_non_ws_index = line.len() - 1;
 
 	for (i, b) in line.iter()
 		.copied().enumerate().skip(1) {
@@ -155,4 +157,29 @@ fn test_parse_header_line() {
 		parse_header_line(tab_character_at_eol),
 		Err(TBD)
 	);
+}
+
+#[test]
+fn test_samples() {
+	let header_str = b"Cache-Control: max-age=0";
+	assert_eq!(&header_str[..13], b"Cache-Control");
+	assert_eq!(&header_str[15..], b"max-age=0");
+	assert_eq!(
+		parse_header_line(header_str),
+		ParseResult::Ok {
+			field_name: &header_str[..13],
+			field_value: &header_str[15..],
+		}
+	);
+
+	let header_str = b"DNT: 1";
+	assert_eq!(&header_str[..3], b"DNT");
+	assert_eq!(&header_str[5..6], b"1");
+	assert_eq!(
+		parse_header_line(header_str),
+		ParseResult::Ok{
+			field_name: &header_str[..3],
+			field_value: &header_str[5..6],
+		}
+	)
 }

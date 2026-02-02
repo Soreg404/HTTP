@@ -1,5 +1,6 @@
 use DelayedConsumeResult::*;
 
+#[derive(Debug)]
 pub struct DelayedStateBuffer {
 	current_read_head: usize,
 	n_bytes_consumed: usize,

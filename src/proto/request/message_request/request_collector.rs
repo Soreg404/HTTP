@@ -48,6 +48,7 @@ impl RequestCollector {
 			Some(Ok(())) => Ok(Request {
 				method: self.method.unwrap(),
 				url: self.url.unwrap(),
+				version: self.version.unwrap(),
 				message: self.message_collector.into_message(),
 			})
 		}
@@ -96,11 +97,14 @@ impl RequestCollector {
 			}
 		}
 
+		dbg!(bytes.len());
+		dbg!(self.first_line_len);
+		dbg!(pushed_bytes_consumed);
+
 		match self.message_collector.advance(
 			&self.internal_buffer[self.first_line_len..]
 		) {
 			Advance { consumed, collector_state } => {
-				dbg!(consumed);
 				pushed_bytes_consumed += consumed;
 
 				if let CollectorState::Finished(r) = collector_state {
@@ -108,6 +112,8 @@ impl RequestCollector {
 				}
 			}
 		};
+
+		dbg!(pushed_bytes_consumed);
 
 		pushed_bytes_consumed
 	}

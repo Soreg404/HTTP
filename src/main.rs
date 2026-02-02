@@ -1,5 +1,6 @@
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use http::consts::StatusCode;
 
 fn main() {
 	let listener = TcpListener::bind("[::1]:48001").unwrap();
@@ -49,6 +50,15 @@ fn main() {
 
 		dbg!(request);
 
-		tcp_stream.write_all(b"HTTP/1.1 200 OK\r\n\r\n").unwrap()
+		let mut builder = http::response::Builder::new();
+		builder.set_status(StatusCode::IM_A_TEAPOT);
+		builder.push_header("helo", "world");
+
+		let bytes = builder
+			.into_response()
+			.into_bytes();
+
+		// tcp_stream.write_all(b"HTTP/1.1 200 OK\r\n\r\n").unwrap()
+		tcp_stream.write_all(bytes.as_slice()).unwrap()
 	}
 }

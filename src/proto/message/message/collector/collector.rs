@@ -53,7 +53,6 @@ enum AdvanceSingleResult {
 }
 
 impl MessageCollector {
-
 	pub fn is_finished(&self) -> bool {
 		use CollectorState::*;
 		match &self.collector_state {
@@ -63,6 +62,7 @@ impl MessageCollector {
 	}
 
 	pub fn advance(&mut self, buffer: &[u8]) -> Advance {
+		dbg!(String::from_utf8_lossy(&buffer[0..16]));
 		use AdvanceSingleResult::*;
 
 		let advance_start_read_head =
@@ -73,7 +73,7 @@ impl MessageCollector {
 				CanContinue => continue,
 				ChangePhase(p) => {
 					self.collector_state = CollectorState::Incomplete(p);
-					continue
+					continue;
 				}
 				NotEnoughBytes => {
 					return Advance {
@@ -86,15 +86,15 @@ impl MessageCollector {
 					return Advance {
 						consumed: self.master_buffer_reader
 							.current_read_head() - advance_start_read_head,
-						collector_state: self.collector_state
-					}
+						collector_state: self.collector_state,
+					};
 				}
 				Error(e) => {
 					self.collector_state = CollectorState::Finished(Err(e));
 					return Advance {
 						consumed: 0,
 						collector_state: self.collector_state,
-					}
+					};
 				}
 			}
 		}
@@ -109,6 +109,7 @@ impl MessageCollector {
 			CollectorState::Finished(_) => ADV::Finished,
 			CollectorState::Incomplete(phase) => match phase {
 				MainHeaders => {
+					dbg!(&self.master_buffer_reader);
 					match self.master_buffer_reader.take_line(&buffer) {
 						NotEnoughBytes => ADV::NotEnoughBytes,
 						Finished { slice, .. } => {
@@ -117,6 +118,8 @@ impl MessageCollector {
 									ADV::ChangePhase(MainBody)
 								}
 								ParseResult::Err(e) => {
+									dbg!(e, &self.master_buffer_reader);
+									dbg!(String::from_utf8_lossy(slice));
 									ADV::Error(e)
 								}
 								ParseResult::Ok {

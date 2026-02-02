@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
 #[derive(Debug)]
@@ -24,6 +25,7 @@ impl FromStr for Method {
 	}
 }
 
+#[derive(Debug)]
 pub enum Version {
 	HTTP09,
 	HTTP10,
@@ -47,11 +49,35 @@ impl FromStr for Version {
 	}
 }
 
+impl Display for Version {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		write!(f, "HTTP/{}", match self {
+			Version::HTTP09 => "0.9",
+			Version::HTTP10 => "1.0",
+			Version::HTTP11 => "1.1",
+			Version::HTTP20 => "2.0",
+			Version::HTTP30 => "3.0"
+		})
+	}
+}
+
 #[allow(non_camel_case_types)]
+#[derive(Copy, Clone, Debug)]
 pub enum StatusCode {
 	SUCCESS = 200,
 	NOT_FOUND = 404,
 	IM_A_TEAPOT = 418,
+}
+
+impl StatusCode {
+	pub fn as_desc(&self) -> &'static str {
+		use StatusCode::*;
+		match self {
+			SUCCESS => "OK",
+			NOT_FOUND => "NOT FOUND",
+			IM_A_TEAPOT => "I'M A TEAPOT",
+		}
+	}
 }
 
 pub enum MimeType {
