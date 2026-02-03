@@ -2,11 +2,15 @@ mod into_message;
 
 use crate::proto::buffer_reader::{DelayedConsumeResult, DelayedStateBuffer};
 use crate::proto::parser;
-use crate::proto::parser::{ParseError, ParseResult};
+use crate::proto::parser::{HeaderLineParseResult, ParseError};
 
 
-#[derive(Copy, Clone)]
+pub type CollectResult = Option<Result<(), ParseError>>;
+
+#[derive(Copy, Clone, Default)]
 enum CollectPhase {
+	#[default]
+	FirstLine,
 	MainHeaders,
 	MainBody,
 }
@@ -29,7 +33,7 @@ pub struct MessageCollector {
 impl MessageCollector {
 	pub fn new() -> Self {
 		Self {
-			collector_state: CollectorState::Incomplete(CollectPhase::MainHeaders),
+			collector_state: CollectorState::Incomplete(Default::default()),
 
 			collected_headers: vec![],
 			collected_body: vec![],
@@ -39,9 +43,12 @@ impl MessageCollector {
 	}
 }
 
-pub struct Advance {
-	pub consumed: usize,
-	pub collector_state: CollectorState,
+pub enum MessageCollectorAdvance {
+	NeedMoreBytes,
+	Finished {
+		remaining_bytes: usize
+	},
+	Error(ParseError),
 }
 
 enum AdvanceSingleResult {
@@ -61,12 +68,29 @@ impl MessageCollector {
 		}
 	}
 
-	pub fn advance(&mut self, buffer: &[u8]) -> Advance {
-		dbg!(String::from_utf8_lossy(&buffer[0..16]));
+	pub fn advance<F>(&mut self, buffer: &[u8], on_first_line: F)
+					  -> MessageCollectorAdvance
+	where
+		F: FnMut(&[u8]) -> Result<(), ParseError>,
+	{
 		use AdvanceSingleResult::*;
 
-		let advance_start_read_head =
-			self.master_buffer_reader.current_read_head();
+		if let CollectorState::Incomplete(CollectPhase::FirstLine) = self.collector_state {
+			match self.master_buffer_reader.take_line(buffer) {
+				DelayedConsumeResult::NotEnoughBytes =>
+					return MessageCollectorAdvance::NeedMoreBytes,
+				DelayedConsumeResult::Finished { slice, .. } => {
+					match on_first_line(slice) {
+						Ok(()) => {
+						self.collector_state
+						}
+						Err(e) => {
+							return MessageCollectorAdvance::Error(e)
+						}
+					}
+				}
+			};
+		}
 
 		loop {
 			match self.advance_single(buffer) {
@@ -76,25 +100,17 @@ impl MessageCollector {
 					continue;
 				}
 				NotEnoughBytes => {
-					return Advance {
-						consumed: buffer.len(),
-						collector_state: self.collector_state,
-					}
+					return MessageCollectorAdvance::NeedMoreBytes
 				}
 				Finished => {
 					self.collector_state = CollectorState::Finished(Ok(()));
-					return Advance {
-						consumed: self.master_buffer_reader
-							.current_read_head() - advance_start_read_head,
-						collector_state: self.collector_state,
+					return MessageCollectorAdvance::Finished {
+						remaining_bytes: buffer.len() - self.master_buffer_reader.consumed(),
 					};
 				}
 				Error(e) => {
 					self.collector_state = CollectorState::Finished(Err(e));
-					return Advance {
-						consumed: 0,
-						collector_state: self.collector_state,
-					};
+					return MessageCollectorAdvance::Error(e);
 				}
 			}
 		}
@@ -114,15 +130,15 @@ impl MessageCollector {
 						NotEnoughBytes => ADV::NotEnoughBytes,
 						Finished { slice, .. } => {
 							match parser::parse_header_line(slice) {
-								ParseResult::Empty => {
+								HeaderLineParseResult::Empty => {
 									ADV::ChangePhase(MainBody)
 								}
-								ParseResult::Err(e) => {
+								HeaderLineParseResult::Err(e) => {
 									dbg!(e, &self.master_buffer_reader);
 									dbg!(String::from_utf8_lossy(slice));
 									ADV::Error(e)
 								}
-								ParseResult::Ok {
+								HeaderLineParseResult::Ok {
 									field_name,
 									field_value
 								} => {

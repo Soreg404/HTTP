@@ -1,14 +1,12 @@
 use crate::consts::{Method, Version};
 use crate::proto::buffer_reader::{DelayedConsumeResult, DelayedStateBuffer};
-use crate::proto::message::{Advance, CollectorState, MessageCollector};
+use crate::proto::message::{Advance, CollectResult, CollectorState, MessageCollector, MessageCollectorAdvance};
 use crate::proto::parser;
 use crate::proto::parser::ParseError;
 use crate::request::Request;
 
 pub struct RequestCollector {
-	collect_result: Option<Result<(), ParseError>>,
-
-	first_line_len: Option<usize>,
+	collect_result: CollectResult,
 
 	method: Option<Method>,
 	url: Option<String>,
@@ -46,7 +44,6 @@ impl RequestCollector {
 			Some(Ok(())) => Ok(Request {
 				method: self.method.unwrap(),
 				url: self.url.unwrap(),
-				version: self.version.unwrap(),
 				message: self.message_collector.into_message(),
 			})
 		}
@@ -55,63 +52,29 @@ impl RequestCollector {
 
 impl RequestCollector {
 	pub fn push_bytes(&mut self, bytes: &[u8]) -> usize {
+		if self.is_finished() {
+			panic!("Attempted to push bytes on a finished collector");
+		}
 		self.internal_buffer.extend_from_slice(bytes);
 
-		let mut pushed_bytes_consumed = 0;
-
-		if self.first_line_len.is_none() {
-			match DelayedStateBuffer::new()
-				.take_line(&self.internal_buffer) {
-				DelayedConsumeResult::NotEnoughBytes => return bytes.len(),
-				DelayedConsumeResult::Finished {
-					consumed,
-					slice,
-					..
-				} => {
-
-					match parser::parse_request_first_line(slice) {
-						Ok(v) => {
-							self.method = Some(v.method);
-							self.url = Some(String::from_utf8_lossy(
-								v.url_slice.as_slice()).to_string());
-							self.version = Some(v.version);
-						}
-						Err(e) => {
-							self.collect_result = Some(Err(e));
-							return 0;
-						}
+		match self.message_collector.advance(self.internal_buffer.as_slice()) {
+			MessageCollectorAdvance::FirstLine(s) => {
+				match parser::parse_request_first_line(s) {
+					Ok(v) => {
+						self.method = Some(v.method);
+						self.url = Some(String::from_utf8_lossy(
+							v.url_slice.as_slice()).to_string());
+						self.version = Some(v.version);
 					}
-
-					self.first_line_len = Some(consumed);
-
-					if self.internal_buffer.len() == consumed {
-						return bytes.len();
-					} else {
-						pushed_bytes_consumed += bytes.len()
-							- (self.internal_buffer.len() - consumed);
+					Err(e) => {
+						self.collect_result = Some(Err(e));
+						return 0;
 					}
 				}
 			}
+			MessageCollectorAdvance::NeedMoreBytes => {}
+			MessageCollectorAdvance::Finished { .. } => {}
+			MessageCollectorAdvance::Error(_) => {}
 		}
-
-		dbg!(bytes.len());
-		dbg!(self.first_line_len);
-		dbg!(pushed_bytes_consumed);
-
-		match self.message_collector.advance(
-			&self.internal_buffer[self.first_line_len..]
-		) {
-			Advance { consumed, collector_state } => {
-				pushed_bytes_consumed += consumed;
-
-				if let CollectorState::Finished(r) = collector_state {
-					self.collect_result = Some(r);
-				}
-			}
-		};
-
-		dbg!(pushed_bytes_consumed);
-
-		pushed_bytes_consumed
 	}
 }

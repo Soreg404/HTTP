@@ -2,7 +2,7 @@ use crate::proto::parser::ParseError;
 use crate::proto::parser::ParseError::TBD;
 
 #[derive(Debug, Eq, PartialEq)]
-pub enum ParseResult<'a> {
+pub enum HeaderLineParseResult<'a> {
 	Empty,
 	Ok {
 		field_name: &'a [u8],
@@ -35,9 +35,9 @@ fn valid_nth_byte_of_field_name(c: u8) -> bool {
 	}
 }
 
-pub fn parse_header_line(line: &[u8]) -> ParseResult {
+pub fn parse_header_line(line: &[u8]) -> HeaderLineParseResult {
 	use ParseState::*;
-	use ParseResult::*;
+	use HeaderLineParseResult::*;
 
 	if line.is_empty() {
 		return Empty;
@@ -126,7 +126,7 @@ pub fn parse_header_line(line: &[u8]) -> ParseResult {
 
 #[test]
 fn test_parse_header_line() {
-	use ParseResult::*;
+	use HeaderLineParseResult::*;
 
 	let healthy_header_line = b"host: unstd.pl";
 	assert_eq!(
@@ -166,7 +166,7 @@ fn test_samples() {
 	assert_eq!(&header_str[15..], b"max-age=0");
 	assert_eq!(
 		parse_header_line(header_str),
-		ParseResult::Ok {
+		HeaderLineParseResult::Ok {
 			field_name: &header_str[..13],
 			field_value: &header_str[15..],
 		}
@@ -177,7 +177,7 @@ fn test_samples() {
 	assert_eq!(&header_str[5..6], b"1");
 	assert_eq!(
 		parse_header_line(header_str),
-		ParseResult::Ok{
+		HeaderLineParseResult::Ok{
 			field_name: &header_str[..3],
 			field_value: &header_str[5..6],
 		}
