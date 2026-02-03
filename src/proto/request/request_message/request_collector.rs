@@ -8,8 +8,7 @@ use crate::request::Request;
 pub struct RequestCollector {
 	collect_result: Option<Result<(), ParseError>>,
 
-	is_first_line: bool,
-	first_line_len: usize,
+	first_line_len: Option<usize>,
 
 	method: Option<Method>,
 	url: Option<String>,
@@ -25,8 +24,7 @@ impl RequestCollector {
 		Self {
 			collect_result: None,
 
-			is_first_line: true,
-			first_line_len: 0,
+			first_line_len: None,
 
 			method: None,
 			url: None,
@@ -61,7 +59,7 @@ impl RequestCollector {
 
 		let mut pushed_bytes_consumed = 0;
 
-		if self.is_first_line {
+		if self.first_line_len.is_none() {
 			match DelayedStateBuffer::new()
 				.take_line(&self.internal_buffer) {
 				DelayedConsumeResult::NotEnoughBytes => return bytes.len(),
@@ -70,7 +68,6 @@ impl RequestCollector {
 					slice,
 					..
 				} => {
-					self.is_first_line = false;
 
 					match parser::parse_request_first_line(slice) {
 						Ok(v) => {
@@ -85,13 +82,13 @@ impl RequestCollector {
 						}
 					}
 
-					self.first_line_len = consumed;
+					self.first_line_len = Some(consumed);
 
 					if self.internal_buffer.len() == consumed {
 						return bytes.len();
 					} else {
 						pushed_bytes_consumed += bytes.len()
-							- (self.internal_buffer.len() - self.first_line_len);
+							- (self.internal_buffer.len() - consumed);
 					}
 				}
 			}
