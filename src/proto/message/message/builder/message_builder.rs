@@ -1,3 +1,4 @@
+use crate::consts::Version;
 use crate::proto::message::Message;
 
 pub struct MessageBuilder {
@@ -23,8 +24,9 @@ impl MessageBuilder {
 }
 
 impl MessageBuilder {
-	pub fn into_message(self) -> Message {
+	pub fn into_message(self, http_version: Version) -> Message {
 		Message {
+			version: http_version,
 			headers: self.headers,
 			body: self.body,
 		}

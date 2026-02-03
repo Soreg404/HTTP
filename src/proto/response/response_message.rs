@@ -9,6 +9,7 @@ pub use response_builder::ResponseBuilder as Builder;
 pub use response_collector::ResponseCollector as Collector;
 
 pub struct MessageResponse {
+	version: Version,
 	status_code: StatusCode,
 	message: Message,
 }

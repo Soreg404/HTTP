@@ -1,5 +1,5 @@
-use std::io::{Read, Write};
-use std::net::TcpListener;
+use std::io::{ErrorKind, Read, Write};
+use std::net::{Shutdown, TcpListener};
 use http::consts::StatusCode;
 
 fn main() {
@@ -47,6 +47,25 @@ fn main() {
 				continue 'accept_connection;
 			}
 		};
+
+
+		// could be also a blocking read with timeout
+		tcp_stream.set_nonblocking(true).unwrap();
+		loop {
+			let mut buff = [0; 0xff];
+			match tcp_stream.read(&mut buff) {
+				Ok(n) => {
+					if n == 0 {
+						break;
+					}
+					println!("connection drained bytes: {:?}",
+							 String::from_utf8_lossy(&buff[..n]));
+				}
+				Err(e) if e.kind() == ErrorKind::WouldBlock => break,
+				Err(e) => panic!("Other IO error: {e}"),
+			}
+		}
+		tcp_stream.shutdown(Shutdown::Read).unwrap();
 
 		dbg!(request);
 

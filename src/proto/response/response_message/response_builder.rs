@@ -31,7 +31,7 @@ impl ResponseBuilder {
 		Response {
 			version: self.version,
 			status_code: self.status_code,
-			message: self.message_builder.into_message(),
+			message: self.message_builder.into_message(self.version),
 		}
 	}
 }

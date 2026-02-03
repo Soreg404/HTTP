@@ -1,6 +1,6 @@
 use crate::consts::{Method, Version};
 use crate::proto::buffer_reader::{DelayedConsumeResult, DelayedStateBuffer};
-use crate::proto::message::{Advance, CollectResult, CollectorState, MessageCollector, MessageCollectorAdvance};
+use crate::proto::message::{ CollectResult, CollectorState, MessageCollector, MessageCollectorAdvance};
 use crate::proto::parser;
 use crate::proto::parser::ParseError;
 use crate::request::Request;
@@ -22,8 +22,6 @@ impl RequestCollector {
 		Self {
 			collect_result: None,
 
-			first_line_len: None,
-
 			method: None,
 			url: None,
 			version: None,
@@ -44,7 +42,7 @@ impl RequestCollector {
 			Some(Ok(())) => Ok(Request {
 				method: self.method.unwrap(),
 				url: self.url.unwrap(),
-				message: self.message_collector.into_message(),
+				message: self.message_collector.into_message(self.version.unwrap()),
 			})
 		}
 	}
@@ -57,24 +55,30 @@ impl RequestCollector {
 		}
 		self.internal_buffer.extend_from_slice(bytes);
 
-		match self.message_collector.advance(self.internal_buffer.as_slice()) {
-			MessageCollectorAdvance::FirstLine(s) => {
-				match parser::parse_request_first_line(s) {
-					Ok(v) => {
-						self.method = Some(v.method);
-						self.url = Some(String::from_utf8_lossy(
-							v.url_slice.as_slice()).to_string());
-						self.version = Some(v.version);
-					}
-					Err(e) => {
-						self.collect_result = Some(Err(e));
-						return 0;
-					}
-				}
+		match self.message_collector.advance(
+			self.internal_buffer.as_slice(),
+			|s| {
+				let v = parser::parse_request_first_line(s)?;
+
+				self.method = Some(v.method);
+				self.url = Some(String::from_utf8_lossy(
+					v.url_slice.as_slice()).to_string());
+				self.version = Some(v.version);
+
+				Ok(())
 			}
-			MessageCollectorAdvance::NeedMoreBytes => {}
-			MessageCollectorAdvance::Finished { .. } => {}
-			MessageCollectorAdvance::Error(_) => {}
+		) {
+			MessageCollectorAdvance::NeedMoreBytes => bytes.len(),
+			MessageCollectorAdvance::Finished { remaining_bytes } => {
+				self.collect_result = Some(Ok(()));
+				dbg!(bytes.len(), remaining_bytes);
+				bytes.len() - remaining_bytes
+			}
+			MessageCollectorAdvance::Error(e) => {
+				self.collect_result = Some(Err(e));
+				0
+			}
 		}
+
 	}
 }

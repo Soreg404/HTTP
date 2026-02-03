@@ -68,7 +68,7 @@ impl MessageCollector {
 		}
 	}
 
-	pub fn advance<F>(&mut self, buffer: &[u8], on_first_line: F)
+	pub fn advance<F>(&mut self, buffer: &[u8], mut on_first_line: F)
 					  -> MessageCollectorAdvance
 	where
 		F: FnMut(&[u8]) -> Result<(), ParseError>,
@@ -82,7 +82,9 @@ impl MessageCollector {
 				DelayedConsumeResult::Finished { slice, .. } => {
 					match on_first_line(slice) {
 						Ok(()) => {
-						self.collector_state
+							self.collector_state =
+								CollectorState::Incomplete(
+									CollectPhase::MainHeaders);
 						}
 						Err(e) => {
 							return MessageCollectorAdvance::Error(e)
@@ -122,10 +124,10 @@ impl MessageCollector {
 		use AdvanceSingleResult as ADV;
 
 		match self.collector_state {
-			CollectorState::Finished(_) => ADV::Finished,
+			CollectorState::Finished(_) => unreachable!(),
 			CollectorState::Incomplete(phase) => match phase {
+				FirstLine => unreachable!(),
 				MainHeaders => {
-					dbg!(&self.master_buffer_reader);
 					match self.master_buffer_reader.take_line(&buffer) {
 						NotEnoughBytes => ADV::NotEnoughBytes,
 						Finished { slice, .. } => {
