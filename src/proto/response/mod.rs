@@ -1,5 +1,5 @@
-mod message_response;
+mod response_message;
 
-pub use message_response::MessageResponse as Response;
-pub use message_response::Collector;
-pub use message_response::Builder;
+pub use response_message::MessageResponse as Response;
+pub use response_message::Collector;
+pub use response_message::Builder;

@@ -1,6 +1,6 @@
 
-mod message_request;
+mod request_message;
 
-pub use message_request::MessageRequest as Request;
-pub use message_request::Collector;
-pub use message_request::Builder;
+pub use request_message::MessageRequest as Request;
+pub use request_message::Collector;
+pub use request_message::Builder;

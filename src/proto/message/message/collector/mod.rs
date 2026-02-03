@@ -1,2 +1,2 @@
-mod collector;
-pub use collector::*;
+mod message_collector;
+pub use message_collector::*;

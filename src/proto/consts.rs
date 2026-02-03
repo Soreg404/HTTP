@@ -25,7 +25,7 @@ impl FromStr for Method {
 	}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Version {
 	HTTP09,
 	HTTP10,
