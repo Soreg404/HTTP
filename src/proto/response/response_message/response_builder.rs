@@ -12,7 +12,7 @@ impl Default for ResponseBuilder {
 	fn default() -> Self {
 		Self {
 			status_code: StatusCode::SUCCESS,
-			version: Version::HTTP11,
+			version: Version::HTTP_1_1,
 			message_builder: Default::default(),
 		}
 	}
@@ -22,15 +22,15 @@ impl ResponseBuilder {
 	pub fn new() -> Self{
 		Self {
 			status_code: StatusCode::SUCCESS,
-			version: Version::HTTP11,
+			version: Version::HTTP_1_1,
 			message_builder: Default::default(),
 		}
 	}
 
 	pub fn into_response(self) -> Response {
 		Response {
-			version: self.version,
 			status_code: self.status_code,
+			status_desc: "".to_string(),
 			message: self.message_builder.into_message(self.version),
 		}
 	}

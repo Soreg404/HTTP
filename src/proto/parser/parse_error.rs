@@ -2,5 +2,7 @@
 pub enum ParseError {
 	TBD,
 	FirstLine,
-	HeaderLine
+	HeaderLine,
+	InvalidStatusCode,
+	InvalidVersion,
 }

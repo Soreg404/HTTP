@@ -8,9 +8,10 @@ use crate::consts::Version;
 pub use response_builder::ResponseBuilder as Builder;
 pub use response_collector::ResponseCollector as Collector;
 
+#[derive(Debug)]
 pub struct MessageResponse {
-	version: Version,
 	status_code: StatusCode,
+	status_desc: String,
 	message: Message,
 }
 

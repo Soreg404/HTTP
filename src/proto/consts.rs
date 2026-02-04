@@ -1,5 +1,6 @@
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
+use crate::proto::parser::ParseError;
 
 #[derive(Debug)]
 pub enum Method {
@@ -25,26 +26,27 @@ impl FromStr for Method {
 	}
 }
 
+#[allow(non_camel_case_types)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Version {
-	HTTP09,
-	HTTP10,
-	HTTP11,
-	HTTP20,
-	HTTP30,
+	HTTP_0_9,
+	HTTP_1_0,
+	HTTP_1_1,
+	HTTP_2_0,
+	HTTP_3_0,
 }
 
 impl FromStr for Version {
-	type Err = ();
+	type Err = ParseError;
 
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
 		match s {
-			"HTTP/0.9" => Ok(Version::HTTP09),
-			"HTTP/1.0" => Ok(Version::HTTP10),
-			"HTTP/1.1" => Ok(Version::HTTP11),
-			"HTTP/2.0" => Ok(Version::HTTP20),
-			"HTTP/3.0" => Ok(Version::HTTP30),
-			_ => Err(())
+			"HTTP/0.9" => Ok(Version::HTTP_0_9),
+			"HTTP/1.0" => Ok(Version::HTTP_1_0),
+			"HTTP/1.1" => Ok(Version::HTTP_1_1),
+			"HTTP/2.0" => Ok(Version::HTTP_2_0),
+			"HTTP/3.0" => Ok(Version::HTTP_3_0),
+			_ => Err(ParseError::InvalidVersion)
 		}
 	}
 }
@@ -52,11 +54,11 @@ impl FromStr for Version {
 impl Display for Version {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		write!(f, "HTTP/{}", match self {
-			Version::HTTP09 => "0.9",
-			Version::HTTP10 => "1.0",
-			Version::HTTP11 => "1.1",
-			Version::HTTP20 => "2.0",
-			Version::HTTP30 => "3.0"
+			Version::HTTP_0_9 => "0.9",
+			Version::HTTP_1_0 => "1.0",
+			Version::HTTP_1_1 => "1.1",
+			Version::HTTP_2_0 => "2.0",
+			Version::HTTP_3_0 => "3.0"
 		})
 	}
 }
@@ -76,6 +78,20 @@ impl StatusCode {
 			SUCCESS => "OK",
 			NOT_FOUND => "NOT FOUND",
 			IM_A_TEAPOT => "I'M A TEAPOT",
+		}
+	}
+}
+
+impl TryFrom<u32> for StatusCode {
+	type Error = ParseError;
+
+	fn try_from(value: u32) -> Result<Self, Self::Error> {
+		use StatusCode::*;
+		match value {
+			200 => Ok(SUCCESS),
+			404 => Ok(NOT_FOUND),
+			418 => Ok(IM_A_TEAPOT),
+			_ => Err(ParseError::InvalidStatusCode)
 		}
 	}
 }
