@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use crate::consts::{Method, Version};
 use crate::proto::parser::ParseError;
-use crate::proto::parser::ParseError::{FirstLine, TBD};
+use crate::proto::parser::ParseError::{FirstLine};
 
 pub struct RequestFirstLine {
 	pub method: Method,

@@ -28,8 +28,18 @@ impl MessageResponse {
 
 		ret.extend_from_slice(first_line.as_bytes());
 
-		ret.extend_from_slice(self.message.into_bytes().as_slice());
+		ret.extend_from_slice(self.message.as_bytes().as_slice());
 
 		ret
+	}
+}
+
+impl MessageResponse {
+	pub fn status_code(&self) -> StatusCode {
+		self.status_code
+	}
+
+	pub fn body_as_bytes(&self) -> &[u8] {
+		self.message.body_as_bytes()
 	}
 }

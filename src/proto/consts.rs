@@ -26,6 +26,19 @@ impl FromStr for Method {
 	}
 }
 
+impl Display for Method {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		use Method::*;
+		match self {
+			GET => write!(f, "GET"),
+			POST => write!(f, "POST"),
+			PUT => write!(f, "PUT"),
+			PATCH => write!(f, "PATCH"),
+			DELETE => write!(f, "DELETE")
+		}
+	}
+}
+
 #[allow(non_camel_case_types)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Version {

@@ -3,7 +3,7 @@ mod into_message;
 use crate::proto::buffer_reader::{DelayedConsumeResult, DelayedStateBuffer};
 use crate::proto::parser;
 use crate::proto::parser::{HeaderLineParseResult, ParseError};
-
+use crate::proto::parser::ParseError::TBD;
 
 pub type CollectResult = Option<Result<(), ParseError>>;
 
@@ -21,11 +21,17 @@ pub enum CollectorState {
 	Finished(Result<(), ParseError>),
 }
 
+struct MessageMeta {
+	content_length: Option<usize>,
+}
+
 pub struct MessageCollector {
 	collector_state: CollectorState,
 
 	collected_headers: Vec<(Vec<u8>, Vec<u8>)>,
 	collected_body: Vec<u8>,
+
+	meta: MessageMeta,
 
 	master_buffer_reader: DelayedStateBuffer,
 }
@@ -37,6 +43,10 @@ impl MessageCollector {
 
 			collected_headers: vec![],
 			collected_body: vec![],
+
+			meta: MessageMeta {
+				content_length: None,
+			},
 
 			master_buffer_reader: DelayedStateBuffer::new(),
 		}
@@ -144,6 +154,10 @@ impl MessageCollector {
 									field_name,
 									field_value
 								} => {
+									match self.tend_header(field_name, field_value) {
+										Ok(()) => {}
+										Err(e) => return ADV::Error(e)
+									};
 									self.collected_headers
 										.push((
 											field_name.to_owned(),
@@ -156,10 +170,42 @@ impl MessageCollector {
 					}
 				}
 				MainBody => {
-					dbg!(&self.collected_headers);
-					ADV::Finished
+					match self.meta.content_length {
+						None => {
+							ADV::Error(TBD("no content length / todo: chunked"))
+						}
+						Some(l) => {
+							match self.master_buffer_reader.take_exact(buffer, l) {
+								NotEnoughBytes => ADV::NotEnoughBytes,
+								Finished { slice, .. } => {
+									self.collected_body = slice.to_vec();
+									ADV::Finished
+								}
+							}
+						}
+					}
 				}
 			}
 		}
 	}
+
+	fn tend_header(&mut self, field_name: &[u8], field_value: &[u8]) -> Result<(), ParseError> {
+		if field_name.eq_ignore_ascii_case(b"content-length") {
+			self.meta.content_length = Some(u8_to_usize(field_value)?);
+		}
+
+		Ok(())
+	}
+}
+
+fn u8_to_usize(s: &[u8]) -> Result<usize, ParseError> {
+	let mut res = 0usize;
+	for c in s.iter().cloned() {
+		if !c.is_ascii_digit() {
+			return Err(TBD("u8_to_usize - content length is not digit"));
+		}
+		res *= 10;
+		res += (c - b'0') as usize;
+	}
+	Ok(res)
 }

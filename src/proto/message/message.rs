@@ -19,7 +19,8 @@ impl Message {
 }
 
 impl Message {
-	pub fn into_bytes(self) -> Vec<u8> {
+	// todo: Vec<u8> -> self.&[u8]
+	pub fn as_bytes(&self) -> Vec<u8> {
 		let mut ret = Vec::new();
 
 		ret.extend_from_slice(
@@ -35,5 +36,9 @@ impl Message {
 		ret.extend_from_slice(self.body.as_slice());
 
 		ret
+	}
+
+	pub fn body_as_bytes(&self) -> &[u8] {
+		self.body.as_slice()
 	}
 }

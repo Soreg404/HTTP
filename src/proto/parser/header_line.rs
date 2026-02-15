@@ -1,5 +1,5 @@
 use crate::proto::parser::ParseError;
-use crate::proto::parser::ParseError::TBD;
+use crate::proto::parser::ParseError::{HeaderLine};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum HeaderLineParseResult<'a> {
@@ -47,7 +47,7 @@ pub fn parse_header_line(line: &[u8]) -> HeaderLineParseResult {
 		.get(0)
 		.map(valid_first_byte_of_field_name)
 		!= Some(true) {
-		return Err(TBD);
+		return Err(HeaderLine);
 	}
 
 	let mut state = FieldName;
@@ -77,14 +77,14 @@ pub fn parse_header_line(line: &[u8]) -> HeaderLineParseResult {
 				}
 
 				if !valid_nth_byte_of_field_name(b) {
-					return Err(TBD);
+					return Err(HeaderLine);
 				}
 			}
 			WhitespaceBeforeColon => {
 				if b == b':' {
 					state = WhitespaceAfterColon;
 				} else if b != b' ' {
-					return Err(TBD)
+					return Err(HeaderLine)
 				}
 			}
 			WhitespaceAfterColon => {
@@ -109,12 +109,12 @@ pub fn parse_header_line(line: &[u8]) -> HeaderLineParseResult {
 	let trailing_whitespace = &line[last_non_ws_index + 1..];
 	for c in trailing_whitespace.iter().copied() {
 		if c != b' ' {
-			return Err(TBD);
+			return Err(HeaderLine);
 		}
 	}
 
 	if field_name.len() == 0 {
-		return Err(TBD);
+		return Err(HeaderLine);
 	}
 
 	Ok {
@@ -128,8 +128,7 @@ pub fn parse_header_line(line: &[u8]) -> HeaderLineParseResult {
 fn test_parse_header_line() {
 	use HeaderLineParseResult::*;
 
-	let healthy_header_line = b"host: unstd.pl";
-	assert_eq!(
+	let healthy_header_line = b"host: unstd.pl"; assert_eq!(
 		parse_header_line(healthy_header_line),
 		Ok {
 			field_name: &healthy_header_line[..4],
@@ -140,22 +139,22 @@ fn test_parse_header_line() {
 	let leading_ws = b" host: unstd.pl";
 	assert_eq!(
 		parse_header_line(leading_ws),
-		Err(TBD)
+		Err(HeaderLine)
 	);
 	let no_colon = b"host unstd.pl";
 	assert_eq!(
 		parse_header_line(no_colon),
-		Err(TBD)
+		Err(HeaderLine)
 	);
 	let empty_field_name = b": unstd.pl";
 	assert_eq!(
 		parse_header_line(empty_field_name),
-		Err(TBD)
+		Err(HeaderLine)
 	);
 	let tab_character_at_eol = b"host: unstd.pl	";
 	assert_eq!(
 		parse_header_line(tab_character_at_eol),
-		Err(TBD)
+		Err(HeaderLine)
 	);
 }
 
