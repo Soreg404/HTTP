@@ -9,7 +9,8 @@ pub use request_builder::RequestBuilder as Builder;
 
 #[derive(Debug)]
 pub struct MessageRequest {
-	method: Method,
-	url: String,
-	message: Message,
+	/* todo: pub is temporary */
+	pub method: Method,
+	pub url: String,
+	pub message: Message,
 }
