@@ -5,7 +5,7 @@ use http::consts::StatusCode;
 fn main() {
 	let listener = TcpListener::bind("[::1]:48001").unwrap();
 	'accept_connection: loop {
-		let (mut tcp_stream, peer) = listener.accept()
+/*		let (mut tcp_stream, peer) = listener.accept()
 			.unwrap();
 
 		println!("accepted connection from {:#?}", peer);
@@ -102,7 +102,7 @@ fn main() {
 		};
 
 		dbg!(response);
-	}
+*/	}
 }
 
 fn drain_tcp(tcp_stream: &mut TcpStream) {

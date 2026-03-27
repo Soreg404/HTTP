@@ -1,7 +1,5 @@
 pub mod consts;
 pub mod url;
-mod buffer_reader;
-mod message;
+mod state_buffer_reader;
 mod parser;
-pub mod request;
-pub mod response;
+mod message_common;
