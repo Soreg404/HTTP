@@ -20,11 +20,12 @@ impl StateBufferReader {
 		}
 	}
 
-	pub fn with_read_head(current_read_head: usize) -> Self {
-		Self {
-			current_read_head,
-			n_bytes_consumed: 0,
-		}
+	pub fn get_read_head(&self) -> usize {
+		self.current_read_head
+	}
+
+	pub fn get_n_bytes_consumed(&self) -> usize {
+		self.n_bytes_consumed
 	}
 
 	pub fn take_whitespace<'a>(&mut self, buffer: &'a [u8])
@@ -85,9 +86,20 @@ impl StateBufferReader {
 		}
 	}
 
-	pub fn get_rest<'a>(&self, buffer: &'a [u8]) -> &'a [u8] {
-		&buffer[self.n_bytes_consumed..]
+	pub fn reset_rest(&mut self, buffer: &mut [u8]) {
+		let start_index = self.n_bytes_consumed;
+		self.n_bytes_consumed = 0;
+		self.current_read_head -= start_index;
+		let mut counter = 0;
+		while let Some(b) = buffer.get(start_index + counter) {
+			let b = *b;
+
+			buffer[counter] = b;
+
+			counter += 1;
+		}
 	}
+
 }
 
 impl StateBufferReader {
