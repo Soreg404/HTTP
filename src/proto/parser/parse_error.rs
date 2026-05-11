@@ -5,4 +5,6 @@ pub enum ParseError {
 	HeaderLine,
 	InvalidStatusCode,
 	InvalidVersion,
+	RepeatedContentLengthHeader,
+	InvalidHeader,
 }

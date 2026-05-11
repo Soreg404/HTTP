@@ -1,6 +1,7 @@
 use crate::consts::{Method, StatusCode, Version};
 use crate::proto::message_common::CollectMessageState::Ended;
 use crate::proto::parser::ParseError;
+use crate::proto::parser::ParseError::{HeaderLine, InvalidHeader, RepeatedContentLengthHeader};
 use crate::proto::state_buffer_reader::{StateBufferReader, StateBufferReaderResult};
 use CollectMessageState::Processing;
 use ProcessingStage::{Body, FirstLine, PreludeHeaders};
@@ -27,11 +28,14 @@ where
 	message_specific: T,
 
 	version: Option<Version>,
+	headers: Vec<(Vec<u8>, Vec<u8>)>,
 
 	pub working_buffer: Vec<u8>,
 	pub working_buffer_reader: StateBufferReader,
 
 	collect_state: CollectMessageState,
+
+	content_length: Option<usize>
 }
 
 trait MessageSpecific {
@@ -43,21 +47,33 @@ trait MessageSpecific {
 
 enum ProcessLoopOutcome {
 	NotEnoughBytes,
-	Continue
+	Continue,
 }
 
 impl<T> MessageCommon<T>
 where
 	T: MessageSpecific,
 {
+	fn new(t: T) -> Self {
+		Self {
+			message_specific: t,
+
+			version: None,
+			headers: Vec::new(),
+			working_buffer: Vec::new(),
+			working_buffer_reader: StateBufferReader::new(),
+			collect_state: Processing(FirstLine),
+
+			content_length: None,
+		}
+	}
+
 	pub fn push_bytes(&mut self, bytes: &[u8]) -> usize {
 		if let Ended(_) = self.collect_state {
 			return 0;
 		}
 
-		{
-			self.working_buffer.extend_from_slice(bytes);
-		}
+		self.working_buffer.extend_from_slice(bytes);
 
 		let begin_read_head =
 			self.working_buffer_reader.current_read_head();
@@ -84,9 +100,9 @@ where
 			match &self.collect_state {
 				Processing(stage) => {
 					if self.process_loop(stage) {
-						continue
+						continue;
 					} else {
-						break
+						break;
 					}
 				}
 				Ended(_) => unreachable!(),
@@ -101,7 +117,6 @@ where
 					.take_line(&self.working_buffer) {
 					NotEnoughBytes => false,
 					Done(line) => {
-
 						match self.message_specific
 							.collect_first_line(line) {
 							Ok(ver) => {
@@ -122,13 +137,49 @@ where
 					.take_line(&self.working_buffer) {
 					NotEnoughBytes => false,
 					Done(header_line) => {
-						// todo: check line validity
+						let mut split_idx = None;
+
+						for (i, c) in header_line.iter().enumerate() {
+							if *c < b' ' || *c > b'~' {
+								self.collect_state = Ended(Err(HeaderLine));
+								return false;
+							}
+
+							if *c == b':' && split_idx.is_none() {
+								split_idx = Some(i);
+							}
+						}
 
 						let header_line = header_line.trim_ascii();
-
 						if header_line.is_empty() {
 							self.collect_state = Processing(Body);
 							return true;
+						}
+
+						if split_idx.is_none() {
+							self.collect_state = Ended(Err(HeaderLine));
+							return false;
+						}
+
+						let split_idx = split_idx.unwrap();
+
+						let k = header_line[..split_idx].trim_ascii();
+						let v = header_line[split_idx + 1..].trim_ascii();
+
+						self.headers.push((k.into(), v.into()));
+
+						if k.eq_ignore_ascii_case(b"content-length") {
+							if self.content_length.is_some() {
+								self.collect_state = Ended(Err(RepeatedContentLengthHeader));
+								return false;
+							}
+							match v.parse::<usize>() {
+								Ok(v) => self.content_length = Some(v),
+								Err(_e) => {
+									self.collect_state = Ended(Err(InvalidHeader));
+									return false;
+								}
+							}
 						}
 
 						true
@@ -183,30 +234,22 @@ pub type ResponseCollector = MessageCommon<ResponseSpecific>;
 
 impl RequestCollector {
 	pub fn new() -> Self {
-		MessageCommon::<RequestSpecific> {
-			message_specific: RequestSpecific {
+		MessageCommon::<RequestSpecific>::new(
+			RequestSpecific {
 				method: None,
 				url: None,
-			},
-			version: None,
-			working_buffer: Vec::new(),
-			working_buffer_reader: StateBufferReader::new(),
-			collect_state: Processing(FirstLine),
-		}
+			}
+		)
 	}
 }
 
 impl ResponseCollector {
 	pub fn new() -> Self {
-		MessageCommon::<ResponseSpecific> {
-			message_specific: ResponseSpecific {
+		MessageCommon::<ResponseSpecific>::new(
+			ResponseSpecific {
 				status_code: None,
 				status_desc: None,
-			},
-			version: None,
-			working_buffer: Vec::new(),
-			working_buffer_reader: StateBufferReader::new(),
-			collect_state: Processing(FirstLine),
-		}
+			}
+		)
 	}
 }
