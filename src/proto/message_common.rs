@@ -1,20 +1,21 @@
+use std::cmp::min;
 use crate::consts::{Method, StatusCode, Version};
 use crate::proto::message_common::CollectMessageState::Ended;
-use crate::proto::parser::ParseError;
-use crate::proto::parser::ParseError::{HeaderLine, InvalidHeader, RepeatedContentLengthHeader};
-use crate::proto::state_buffer_reader::{StateBufferReader, StateBufferReaderResult};
+use crate::proto::parser::ParseError::{InvalidHeader, RepeatedHeader};
+use crate::proto::parser::{parse_header_line, HeaderLineParseResult, ParseError};
+use crate::proto::state_buffer_reader::{BufferReader, StateBufferReaderResult};
 use CollectMessageState::Processing;
 use ProcessingStage::{Body, FirstLine, PreludeHeaders};
 use StateBufferReaderResult::{Done, NotEnoughBytes};
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 enum ProcessingStage {
 	FirstLine,
 	PreludeHeaders,
 	Body,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 enum CollectMessageState {
 	Ended(Result<(), ParseError>),
 	Processing(ProcessingStage),
@@ -30,12 +31,13 @@ where
 	version: Option<Version>,
 	headers: Vec<(Vec<u8>, Vec<u8>)>,
 
-	pub working_buffer: Vec<u8>,
-	pub working_buffer_reader: StateBufferReader,
+	buffer1: Vec<u8>,
+	buffer1_reader: BufferReader,
 
 	collect_state: CollectMessageState,
 
-	content_length: Option<usize>
+	content_length: Option<usize>,
+	multipart_boundary: Option<Vec<u8>>,
 }
 
 trait MessageSpecific {
@@ -54,67 +56,59 @@ impl<T> MessageCommon<T>
 where
 	T: MessageSpecific,
 {
-	fn new(t: T) -> Self {
+	pub fn parse_result(&self) -> Option<Result<(), ParseError>> {
+		match self.collect_state {
+			Ended(Ok(())) => Some(Ok(())),
+			Ended(Err(e)) => Some(Err(e)),
+			Processing(_) => None
+		}
+	}
+
+	fn new_common(t: T) -> Self {
 		Self {
 			message_specific: t,
 
 			version: None,
 			headers: Vec::new(),
-			working_buffer: Vec::new(),
-			working_buffer_reader: StateBufferReader::new(),
+			buffer1: Vec::new(),
+			buffer1_reader: BufferReader::new(),
 			collect_state: Processing(FirstLine),
 
 			content_length: None,
+			multipart_boundary: None,
 		}
 	}
 
 	pub fn push_bytes(&mut self, bytes: &[u8]) -> usize {
-		if let Ended(_) = self.collect_state {
-			return 0;
-		}
+		self.buffer1.extend_from_slice(bytes);
+		self.ploop();
 
-		self.working_buffer.extend_from_slice(bytes);
-
-		let begin_read_head =
-			self.working_buffer_reader.current_read_head();
-
-		self.process_working_buffer();
-
-		let end_read_head =
-			self.working_buffer_reader.current_read_head();
-
-		{
-			self.working_buffer_reader
-				.reset_rest(&mut self.working_buffer);
-
-			self.working_buffer.truncate(
-				self.working_buffer_reader.current_read_head()
-			);
-		}
-
-		end_read_head - begin_read_head
+		let leftover_bytes =
+			self.buffer1.len() - self.buffer1_reader.current_read_head();
+		bytes.len() - min(leftover_bytes, bytes.len())
 	}
 
-	fn process_working_buffer(&mut self) {
+
+	fn ploop(&mut self) {
 		loop {
-			match &self.collect_state {
+			match self.collect_state.clone() {
+				Ended(_) => {
+					return;
+				}
 				Processing(stage) => {
-					if self.process_loop(stage) {
-						continue;
-					} else {
-						break;
+					if !self.process_loop(stage) {
+						return
 					}
 				}
-				Ended(_) => unreachable!(),
 			}
 		}
 	}
 
-	fn process_loop(&mut self, stage: &ProcessingStage) -> bool {
+	fn process_loop(&mut self, stage: ProcessingStage) -> bool {
 		match stage {
 			FirstLine =>
-				match self.working_buffer_reader
-					.take_line(&self.working_buffer) {
+				match self.buffer1_reader
+					.take_line(&self.buffer1) {
 					NotEnoughBytes => false,
 					Done(line) => {
 						match self.message_specific
@@ -133,54 +127,64 @@ where
 				},
 
 			PreludeHeaders => {
-				match self.working_buffer_reader
-					.take_line(&self.working_buffer) {
+				match self.buffer1_reader
+					.take_line(&self.buffer1) {
 					NotEnoughBytes => false,
 					Done(header_line) => {
-						let mut split_idx = None;
-
-						for (i, c) in header_line.iter().enumerate() {
-							if *c < b' ' || *c > b'~' {
-								self.collect_state = Ended(Err(HeaderLine));
-								return false;
+						match parse_header_line(header_line) {
+							HeaderLineParseResult::Empty => {
+								self.collect_state = Processing(Body);
+								return true;
 							}
+							HeaderLineParseResult::Ok {
+								field_name,
+								field_value
+							} => {
+								self.headers.push(
+									(field_name.into(), field_value.into()));
 
-							if *c == b':' && split_idx.is_none() {
-								split_idx = Some(i);
-							}
-						}
+								if field_name.eq_ignore_ascii_case(b"content-length") {
+									if self.content_length.is_some() {
+										self.collect_state = Ended(Err(RepeatedHeader));
+										return false;
+									}
+									match String::from_utf8_lossy(field_value).parse::<usize>() {
+										Ok(v) => self.content_length = Some(v),
+										Err(_e) => {
+											self.collect_state = Ended(Err(InvalidHeader));
+											return false;
+										}
+									}
+								} else if field_name.eq_ignore_ascii_case(b"content-type") {
+									// todo: This is a terrible bodge pls do better
 
-						let header_line = header_line.trim_ascii();
-						if header_line.is_empty() {
-							self.collect_state = Processing(Body);
-							return true;
-						}
-
-						if split_idx.is_none() {
-							self.collect_state = Ended(Err(HeaderLine));
-							return false;
-						}
-
-						let split_idx = split_idx.unwrap();
-
-						let k = header_line[..split_idx].trim_ascii();
-						let v = header_line[split_idx + 1..].trim_ascii();
-
-						self.headers.push((k.into(), v.into()));
-
-						if k.eq_ignore_ascii_case(b"content-length") {
-							if self.content_length.is_some() {
-								self.collect_state = Ended(Err(RepeatedContentLengthHeader));
-								return false;
-							}
-							match v.parse::<usize>() {
-								Ok(v) => self.content_length = Some(v),
-								Err(_e) => {
-									self.collect_state = Ended(Err(InvalidHeader));
-									return false;
+									let multipart_value = b"multipart/form-data";
+									if field_value[..multipart_value.len()]
+										.eq_ignore_ascii_case(multipart_value) {
+										if self.multipart_boundary.is_some() {
+											self.collect_state = Ended(Err(RepeatedHeader));
+											return false;
+										}
+										let rest = field_value[multipart_value.len()..].trim_ascii_start();
+										if rest.len() < 10 || rest[0] != b';' {
+											self.collect_state = Ended(Err(InvalidHeader));
+											return false;
+										}
+										let rest = rest[1..].trim_ascii_start();
+										if rest[..9].eq_ignore_ascii_case(b"boundary=") {
+											self.multipart_boundary = Some(rest[9..].into());
+										} else {
+											self.collect_state = Ended(Err(InvalidHeader));
+											return false;
+										}
+									}
 								}
 							}
-						}
+							HeaderLineParseResult::Err(e) => {
+								self.collect_state = Ended(Err(e));
+								return false;
+							}
+						};
 
 						true
 					}
@@ -234,7 +238,7 @@ pub type ResponseCollector = MessageCommon<ResponseSpecific>;
 
 impl RequestCollector {
 	pub fn new() -> Self {
-		MessageCommon::<RequestSpecific>::new(
+		MessageCommon::<RequestSpecific>::new_common(
 			RequestSpecific {
 				method: None,
 				url: None,
@@ -245,11 +249,21 @@ impl RequestCollector {
 
 impl ResponseCollector {
 	pub fn new() -> Self {
-		MessageCommon::<ResponseSpecific>::new(
+		MessageCommon::<ResponseSpecific>::new_common(
 			ResponseSpecific {
 				status_code: None,
 				status_desc: None,
 			}
 		)
+	}
+}
+
+pub fn message_common_dbg<T>(msg: &MessageCommon<T>)
+where
+	T: MessageSpecific,
+{
+	for (h, v) in &msg.headers {
+		println!("header: {:?}:{:?}",
+				 String::from_utf8_lossy(h.as_slice()), String::from_utf8_lossy(v.as_slice()));
 	}
 }

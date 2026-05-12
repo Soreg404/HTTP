@@ -1,7 +1,7 @@
 use StateBufferReaderResult::*;
 
 #[derive(Debug)]
-pub struct StateBufferReader {
+pub struct BufferReader {
 	current_read_head: usize,
 	n_bytes_consumed: usize,
 }
@@ -12,7 +12,7 @@ pub enum StateBufferReaderResult<T> {
 	Done(T),
 }
 
-impl StateBufferReader {
+impl BufferReader {
 	pub fn new() -> Self {
 		Self {
 			current_read_head: 0,
@@ -102,7 +102,7 @@ impl StateBufferReader {
 
 }
 
-impl StateBufferReader {
+impl BufferReader {
 	pub fn consumed(&self) -> usize {
 		self.n_bytes_consumed
 	}
@@ -118,7 +118,7 @@ fn test_buffer_read() {
 			host: unstd.pl\r\n\r\n"
 	);
 	{
-		let mut buffer_reader_line = StateBufferReader::new();
+		let mut buffer_reader_line = BufferReader::new();
 		match buffer_reader_line.take_line(&internal_buffer) {
 			NotEnoughBytes => panic!(),
 			Done(line) => assert_eq!(line, b"HTTP/1.1 200 OK")
@@ -126,7 +126,7 @@ fn test_buffer_read() {
 	}
 
 	{
-		let mut buffer_reader_exact = StateBufferReader::new();
+		let mut buffer_reader_exact = BufferReader::new();
 		match buffer_reader_exact.take_exact(&internal_buffer, 4) {
 			NotEnoughBytes => panic!(),
 			Done(line) => assert_eq!(line, b"HTTP")
@@ -140,7 +140,7 @@ fn test_buffer_read() {
 	}
 
 	{
-		let mut buffer_reader_not_enough = StateBufferReader::new();
+		let mut buffer_reader_not_enough = BufferReader::new();
 		buffer_reader_not_enough.take_line(&internal_buffer);
 		buffer_reader_not_enough.take_line(&internal_buffer);
 		match buffer_reader_not_enough.take_line(&internal_buffer) {
