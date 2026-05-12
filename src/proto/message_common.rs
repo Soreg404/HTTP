@@ -81,7 +81,7 @@ where
 
 	pub fn push_bytes(&mut self, bytes: &[u8]) -> usize {
 		self.buffer1.extend_from_slice(bytes);
-		self.ploop();
+		self.process_loop();
 
 		let leftover_bytes =
 			self.buffer1.len() - self.buffer1_reader.current_read_head();
@@ -89,14 +89,14 @@ where
 	}
 
 
-	fn ploop(&mut self) {
+	fn process_loop(&mut self) {
 		loop {
 			match self.collect_state.clone() {
 				Ended(_) => {
 					return;
 				}
 				Processing(stage) => {
-					if !self.process_loop(stage) {
+					if !self.stage_match(stage) {
 						return
 					}
 				}
@@ -104,7 +104,7 @@ where
 		}
 	}
 
-	fn process_loop(&mut self, stage: ProcessingStage) -> bool {
+	fn stage_match(&mut self, stage: ProcessingStage) -> bool {
 		match stage {
 			FirstLine =>
 				match self.buffer1_reader
