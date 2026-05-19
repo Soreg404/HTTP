@@ -1,4 +1,6 @@
-use StateBufferReaderResult::*;
+mod multipart;
+
+use BufferReaderResult::*;
 
 #[derive(Debug)]
 pub struct BufferReader {
@@ -7,7 +9,7 @@ pub struct BufferReader {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub enum StateBufferReaderResult<T> {
+pub enum BufferReaderResult<T> {
 	NotEnoughBytes,
 	Done(T),
 }
@@ -29,7 +31,7 @@ impl BufferReader {
 	}
 
 	pub fn take_whitespace<'a>(&mut self, buffer: &'a [u8])
-							   -> StateBufferReaderResult<&'a [u8]> {
+							   -> BufferReaderResult<&'a [u8]> {
 		let mut wh_len = 0usize;
 		loop {
 			match buffer.get(self.current_read_head) {
@@ -52,7 +54,7 @@ impl BufferReader {
 	}
 
 	pub fn take_line<'a>(&mut self, buffer: &'a [u8])
-						 -> StateBufferReaderResult<&'a [u8]> {
+						 -> BufferReaderResult<&'a [u8]> {
 		while let Some(b) = buffer.get(self.current_read_head) {
 			self.current_read_head += 1;
 
@@ -74,7 +76,7 @@ impl BufferReader {
 		NotEnoughBytes
 	}
 
-	pub fn take_exact<'a>(&mut self, buffer: &'a [u8], length: usize) -> StateBufferReaderResult<&'a [u8]> {
+	pub fn take_exact<'a>(&mut self, buffer: &'a [u8], length: usize) -> BufferReaderResult<&'a [u8]> {
 		if self.n_bytes_consumed + length <= buffer.len() {
 			self.current_read_head += length;
 			let take_slice =
@@ -83,20 +85,6 @@ impl BufferReader {
 			Done(take_slice)
 		} else {
 			NotEnoughBytes
-		}
-	}
-
-	pub fn reset_rest(&mut self, buffer: &mut [u8]) {
-		let start_index = self.n_bytes_consumed;
-		self.n_bytes_consumed = 0;
-		self.current_read_head -= start_index;
-		let mut counter = 0;
-		while let Some(b) = buffer.get(start_index + counter) {
-			let b = *b;
-
-			buffer[counter] = b;
-
-			counter += 1;
 		}
 	}
 

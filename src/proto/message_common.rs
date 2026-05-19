@@ -2,11 +2,11 @@ use crate::consts::{Method, StatusCode, Version};
 use crate::proto::message_common::CollectMessageState::Ended;
 use crate::proto::parser::ParseError::{InvalidHeader, RepeatedHeader};
 use crate::proto::parser::{parse_header_line, HeaderLineParseResult, ParseError};
-use crate::proto::state_buffer_reader::{BufferReader, StateBufferReaderResult};
+use crate::proto::buffer_reader::{BufferReader, BufferReaderResult};
 use std::cmp::min;
 use CollectMessageState::Processing;
 use ProcessingStage::{Body, FirstLine, PreludeHeaders};
-use StateBufferReaderResult::{Done, NotEnoughBytes};
+use BufferReaderResult::{Done, NotEnoughBytes};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 enum ProcessingStage {
@@ -42,7 +42,7 @@ where
 	body_bytes: Vec<u8>,
 }
 
-trait MessageSpecific {
+pub trait MessageSpecific {
 	fn collect_first_line(
 		&mut self,
 		line: &[u8],
@@ -201,14 +201,23 @@ where
 						false
 					}
 					Some(v) => {
-						match self.buffer1_reader.take_exact(&self.buffer1, v) {
-							NotEnoughBytes => false,
-							Done(s) => {
-								self.body_bytes.extend_from_slice(s);
-								self.collect_state = Ended(Ok(()));
-								false
+
+						match &self.multipart_boundary {
+							Some(boundary) => {
+								self.buffer1_reader.take_next_part()
+							}
+							None => {
+								match self.buffer1_reader.take_exact(&self.buffer1, v) {
+									NotEnoughBytes => false,
+									Done(s) => {
+										self.body_bytes.extend_from_slice(s);
+										self.collect_state = Ended(Ok(()));
+										false
+									}
+								}
 							}
 						}
+
 					}
 				}
 			}
