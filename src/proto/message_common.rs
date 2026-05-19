@@ -88,7 +88,7 @@ where
 		self.process_loop();
 
 		let leftover_bytes =
-			self.buffer1.len() - self.buffer1_reader.current_read_head();
+			self.buffer1.len() - self.buffer1_reader.get_read_head();
 		bytes.len() - min(leftover_bytes, bytes.len())
 	}
 
@@ -204,7 +204,8 @@ where
 
 						match &self.multipart_boundary {
 							Some(boundary) => {
-								self.buffer1_reader.take_next_part()
+								// self.buffer1_reader.take_next_part()
+								false
 							}
 							None => {
 								match self.buffer1_reader.take_exact(&self.buffer1, v) {

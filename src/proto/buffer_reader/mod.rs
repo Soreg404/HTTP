@@ -90,15 +90,6 @@ impl BufferReader {
 
 }
 
-impl BufferReader {
-	pub fn consumed(&self) -> usize {
-		self.n_bytes_consumed
-	}
-	pub fn current_read_head(&self) -> usize {
-		self.current_read_head
-	}
-}
-
 #[test]
 fn test_buffer_read() {
 	let mut internal_buffer = Vec::<u8>::from(
