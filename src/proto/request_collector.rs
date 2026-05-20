@@ -45,17 +45,23 @@ pub struct Rdx {
 }
 
 impl Rdx {
-	pub(crate) fn new(from: usize, to: usize) -> Self {
+	pub fn new(from: usize, to: usize) -> Self {
+		assert!(from <= to);
 		Self { from, to }
 	}
-	fn with_base(self, base: usize) -> Self {
+	pub fn with_base(self, base: usize) -> Self {
 		Self {
 			from: self.from + base,
 			to: self.to + base,
 		}
 	}
-	fn get<'a>(&self, from: &'a [u8]) -> &'a [u8] {
+	pub fn from(&self) -> usize { self.from }
+	pub fn to(&self) -> usize { self.to }
+	pub fn get<'a>(&self, from: &'a [u8]) -> &'a [u8] {
 		&from[self.from..self.to]
+	}
+	pub fn len(&self) -> usize {
+		self.to - self.from
 	}
 }
 

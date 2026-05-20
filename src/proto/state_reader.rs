@@ -40,6 +40,7 @@ impl StateReader {
 	}
 }
 
+
 #[test]
 fn simple_take_line() {
 	let sample = b"line 1\r\nline 2\nline 3\r\nincomplete";

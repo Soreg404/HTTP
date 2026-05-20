@@ -7,25 +7,12 @@
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="be1319c8-0367-41a7-bc8e-d7e8ed876809" name="Changes" comment="doodles and new ideas and redo">
-      <change afterPath="$PROJECT_DIR$/src/proto/request_collector.rs" afterDir="false" />
+    <list default="true" id="be1319c8-0367-41a7-bc8e-d7e8ed876809" name="Changes" comment="rework">
+      <change afterPath="$PROJECT_DIR$/src/proto/header_parser.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/buffer_reader/mod.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/buffer_reader/multipart.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/consts.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/consts.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/message_common.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/message_common_ref.rs" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/src/proto/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/mod.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/new_idea.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/parser/header_line.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/parser/mod.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/parser/parse_error.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/parser/request_first_line.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/parser/response_first_line.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/tmp_http_header.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/header.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/url.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/url.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/http_api.rs" beforeDir="false" afterPath="$PROJECT_DIR$/tests/http_api.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/proto/request_collector.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/request_collector.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/proto/state_reader.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/state_reader.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -77,7 +64,7 @@
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
 }</component>
-  <component name="RunManager" selected="Cargo.Run http">
+  <component name="RunManager" selected="Cargo.Test http">
     <configuration name="Run http" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
       <option name="buildProfileId" value="test" />
       <option name="command" value="run --package http --bin http" />
@@ -127,7 +114,7 @@
       <option name="presentableId" value="Default" />
       <updated>1774618977672</updated>
       <workItem from="1774618980768" duration="11763000" />
-      <workItem from="1779242032833" duration="39884000" />
+      <workItem from="1779242032833" duration="48125000" />
     </task>
     <task id="LOCAL-00001" summary="begin refactor; reimagine buffer reader">
       <option name="closed" value="true" />
@@ -217,7 +204,15 @@
       <option name="project" value="LOCAL" />
       <updated>1779267680942</updated>
     </task>
-    <option name="localTasksCounter" value="12" />
+    <task id="LOCAL-00012" summary="rework">
+      <option name="closed" value="true" />
+      <created>1779291959869</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1779291959869</updated>
+    </task>
+    <option name="localTasksCounter" value="13" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -246,6 +241,7 @@
     <MESSAGE value="idk, late commit" />
     <MESSAGE value="some testing" />
     <MESSAGE value="doodles and new ideas and redo" />
-    <option name="LAST_COMMIT_MESSAGE" value="doodles and new ideas and redo" />
+    <MESSAGE value="rework" />
+    <option name="LAST_COMMIT_MESSAGE" value="rework" />
   </component>
 </project>
