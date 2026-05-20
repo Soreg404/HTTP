@@ -1,27 +1,25 @@
+use crate::consts::StatusCode::{IM_A_TEAPOT, NOT_FOUND, SUCCESS};
 use std::fmt::{Display, Formatter};
-use std::str::FromStr;
-use crate::proto::parser::ParseError;
 
 #[derive(Debug)]
 pub enum Method {
+	UNKNOWN,
 	GET,
 	POST,
 	PUT,
 	PATCH,
-	DELETE
+	DELETE,
 }
 
-impl FromStr for Method {
-	type Err = ();
-
-	fn from_str(s: &str) -> Result<Self, Self::Err> {
-		match s {
-			"GET" => Ok(Method::GET),
-			"POST" => Ok(Method::POST),
-			"PUT" => Ok(Method::PUT),
-			"PATCH" => Ok(Method::PATCH),
-			"DELETE" => Ok(Method::DELETE),
-			_ => Err(())
+impl Method {
+	pub fn from_bytes(bytes: &[u8]) -> Self {
+		match bytes {
+			b"GET" => Method::GET,
+			b"POST" => Method::POST,
+			b"PUT" => Method::PUT,
+			b"PATCH" => Method::PATCH,
+			b"DELETE" => Method::DELETE,
+			_ => Method::UNKNOWN,
 		}
 	}
 }
@@ -34,7 +32,8 @@ impl Display for Method {
 			POST => write!(f, "POST"),
 			PUT => write!(f, "PUT"),
 			PATCH => write!(f, "PATCH"),
-			DELETE => write!(f, "DELETE")
+			DELETE => write!(f, "DELETE"),
+			UNKNOWN => { write!(f, "<UNKNOWN>") }
 		}
 	}
 }
@@ -49,17 +48,15 @@ pub enum Version {
 	HTTP_3_0,
 }
 
-impl FromStr for Version {
-	type Err = ParseError;
-
-	fn from_str(s: &str) -> Result<Self, Self::Err> {
-		match s {
-			"HTTP/0.9" => Ok(Version::HTTP_0_9),
-			"HTTP/1.0" => Ok(Version::HTTP_1_0),
-			"HTTP/1.1" => Ok(Version::HTTP_1_1),
-			"HTTP/2.0" => Ok(Version::HTTP_2_0),
-			"HTTP/3.0" => Ok(Version::HTTP_3_0),
-			_ => Err(ParseError::InvalidVersion)
+impl Version {
+	pub fn from_bytes(bytes: &[u8]) -> Result<Self, ()> {
+		match bytes {
+			b"HTTP/0.9" => Ok(Version::HTTP_0_9),
+			b"HTTP/1.0" => Ok(Version::HTTP_1_0),
+			b"HTTP/1.1" => Ok(Version::HTTP_1_1),
+			b"HTTP/2.0" => Ok(Version::HTTP_2_0),
+			b"HTTP/3.0" => Ok(Version::HTTP_3_0),
+			_ => Err(())
 		}
 	}
 }
@@ -95,16 +92,13 @@ impl StatusCode {
 	}
 }
 
-impl TryFrom<u32> for StatusCode {
-	type Error = ParseError;
-
-	fn try_from(value: u32) -> Result<Self, Self::Error> {
-		use StatusCode::*;
-		match value {
+impl StatusCode {
+	pub fn from_value(v: u32) -> Result<Self, ()> {
+		match v {
 			200 => Ok(SUCCESS),
 			404 => Ok(NOT_FOUND),
 			418 => Ok(IM_A_TEAPOT),
-			_ => Err(ParseError::InvalidStatusCode)
+			_ => Err(())
 		}
 	}
 }

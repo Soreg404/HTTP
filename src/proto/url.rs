@@ -1,7 +1,6 @@
-use crate::proto::parser::ParseError;
 
 
-#[derive(Default, Copy, Debug)]
+#[derive(Default, Copy, Clone, Debug)]
 pub struct UrlMeta {
 	// scheme://domain:port[/path][?query_string][#fragment]
 	//                      ^0     ^query_idx     ^frag_idx
@@ -14,18 +13,18 @@ fn is_allowed_byte(c: u8) -> bool {
 		return true;
 	}
 	match c {
-		b';' | b'/' | b'?' | b':' | b'@' | b'=' | b'&' | b'$' | b'-' |
-		b'_' | b'.' | b'+' | b'!' | b'*' | b'(' | b')' | b',' | b'^' |
-		b'{' | b'}' | b'|' | b'~' | b'[' | b']' | b'`' | b'\\' | b'\''
+		b';' | b'/' | b'?' | b':' | b'%' | b'@' | b'=' | b'&' | b'$' |
+		b'-' | b'_' | b'.' | b'+' | b'!' | b'*' | b'(' | b')' | b',' |
+		b'^' | b'{' | b'}' | b'|' | b'~' | b'[' | b']' | b'`' | b'\\' | b'\''
 		=> true,
 		_ => false
 	}
 }
 
 impl UrlMeta {
-	pub fn parse_bytes(bytes: &[u8]) -> Result<UrlMeta, ParseError> {
+	pub fn parse_bytes(bytes: &[u8]) -> Result<UrlMeta, ()> {
 		if bytes.is_empty() || bytes[0] != b'/' {
-			return Err(ParseError::InvalidUrl);
+			return Err(());
 		}
 
 		enum Part {
@@ -40,7 +39,7 @@ impl UrlMeta {
 
 		for (i, b) in bytes.iter().enumerate() {
 			if !is_allowed_byte(*b) {
-				return Err(ParseError::InvalidUrl);
+				return Err(());
 			}
 			match part {
 				Part::Path => {
