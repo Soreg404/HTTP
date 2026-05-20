@@ -7,6 +7,7 @@ use std::cmp::min;
 use CollectMessageState::Processing;
 use ProcessingStage::{Body, FirstLine, PreludeHeaders};
 use BufferReaderResult::{Done, NotEnoughBytes};
+use crate::proto::url::UrlMeta;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 enum ProcessingStage {
@@ -58,11 +59,11 @@ impl<T> MessageCommon<T>
 where
 	T: MessageSpecific,
 {
-	pub fn parse_result(&self) -> Option<Result<(), ParseError>> {
+
+	pub fn is_finished(&self) -> bool {
 		match self.collect_state {
-			Ended(Ok(())) => Some(Ok(())),
-			Ended(Err(e)) => Some(Err(e)),
-			Processing(_) => None
+			Ended(_) => true,
+			Processing(_) => false
 		}
 	}
 
@@ -226,10 +227,17 @@ where
 	}
 }
 
+pub struct MessageCommonIM<T> {
+
+}
+
+impl MessageCommonIM<> {
+}
+
 #[derive(Debug)]
 pub struct RequestSpecific {
 	method: Option<Method>,
-	url: Option<Vec<u8>>,
+	url: UrlMeta,
 }
 
 impl MessageSpecific for RequestSpecific {
@@ -238,7 +246,7 @@ impl MessageSpecific for RequestSpecific {
 			crate::proto::parser::parse_request_first_line(line)?;
 
 		self.method = Some(result.method);
-		self.url = Some(result.url_slice);
+		self.url = UrlMeta::parse_bytes(&result.url_slice)?;
 
 		Ok(result.version)
 	}
@@ -262,6 +270,8 @@ impl MessageSpecific for ResponseSpecific {
 	}
 }
 
+// MessageCommon<RequestCollectorMeta>
+
 pub type RequestCollector = MessageCommon<RequestSpecific>;
 pub type ResponseCollector = MessageCommon<ResponseSpecific>;
 
@@ -273,6 +283,10 @@ impl RequestCollector {
 				url: None,
 			}
 		)
+	}
+
+	pub fn into_request(self) -> Result<(), ParseError> {
+		todo!()
 	}
 }
 

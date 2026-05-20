@@ -48,7 +48,7 @@ fn test_request_collector(test_name: &str, sample: &[u8]) {
 	println!("leftover bytes: {:?}", String::from_utf8_lossy(
 		&sample[sample.len() / 2 + bytes_read..]));
 
-	println!("is_finished: {:?}", rc.parse_result());
+	println!("is_finished: {:?}", rc.is_finished());
 
 	println!("{CYAN}debug:{C_NUL}");
 	message_common_dbg(&rc);

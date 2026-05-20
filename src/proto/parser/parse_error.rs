@@ -7,4 +7,5 @@ pub enum ParseError {
 	InvalidVersion,
 	RepeatedHeader,
 	InvalidHeader,
+	InvalidUrl,
 }

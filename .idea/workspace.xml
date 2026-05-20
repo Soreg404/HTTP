@@ -7,13 +7,23 @@
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="be1319c8-0367-41a7-bc8e-d7e8ed876809" name="Changes" comment="doodling" />
+    <list default="true" id="be1319c8-0367-41a7-bc8e-d7e8ed876809" name="Changes" comment="some testing">
+      <change afterPath="$PROJECT_DIR$/src/proto/config.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/proto/new_idea.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/proto/message_common.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/message_common.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/proto/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/proto/parser/parse_error.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/parser/parse_error.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/proto/url.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/url.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/http_api.rs" beforeDir="false" afterPath="$PROJECT_DIR$/tests/http_api.rs" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
-  <component name="ExecutionTargetManager" SELECTED_TARGET="RsBuildProfile:dev" />
+  <component name="ExecutionTargetManager" SELECTED_TARGET="RsBuildProfile:test" />
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
       <list>
@@ -22,39 +32,45 @@
     </option>
   </component>
   <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="main" />
+      </map>
+    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="MacroExpansionManager">
     <option name="directoryName" value="ib34twed" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "customColor": "",
-  "associatedIndex": 6
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;customColor&quot;: &quot;&quot;,
+  &quot;associatedIndex&quot;: 6
+}</component>
   <component name="ProjectId" id="3BWyAO0y1XOJgfQxt1p3s2JhTsZ" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Cargo.Run http.executor": "Run",
-    "Cargo.Test http.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.rust.reset.selective.auto.import": "true",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
-    "org.rust.first.attach.projects": "true",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Cargo.Run http.executor&quot;: &quot;Run&quot;,
+    &quot;Cargo.Test http.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.rust.reset.selective.auto.import&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;org.rust.cargo.project.model.PROJECT_DISCOVERY&quot;: &quot;true&quot;,
+    &quot;org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon&quot;: &quot;&quot;,
+    &quot;org.rust.first.attach.projects&quot;: &quot;true&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
-  <component name="RunManager" selected="Cargo.Run http">
+}</component>
+  <component name="RunManager" selected="Cargo.Test http">
     <configuration name="Run http" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-      <option name="buildProfileId" value="dev" />
+      <option name="buildProfileId" value="test" />
       <option name="command" value="run --package http --bin http" />
       <option name="workingDirectory" value="file://$PROJECT_DIR$" />
       <envs />
@@ -102,6 +118,7 @@
       <option name="presentableId" value="Default" />
       <updated>1774618977672</updated>
       <workItem from="1774618980768" duration="11763000" />
+      <workItem from="1779242032833" duration="17242000" />
     </task>
     <task id="LOCAL-00001" summary="begin refactor; reimagine buffer reader">
       <option name="closed" value="true" />
@@ -119,15 +136,98 @@
       <option name="project" value="LOCAL" />
       <updated>1774634203942</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="message common headers wip">
+      <option name="closed" value="true" />
+      <created>1778539189891</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1778539189891</updated>
+    </task>
+    <task id="LOCAL-00004" summary="testing &amp; debugging">
+      <option name="closed" value="true" />
+      <created>1778612570254</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1778612570254</updated>
+    </task>
+    <task id="LOCAL-00005" summary="names">
+      <option name="closed" value="true" />
+      <created>1778612636435</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1778612636435</updated>
+    </task>
+    <task id="LOCAL-00006" summary="fn names refactor">
+      <option name="closed" value="true" />
+      <created>1778612648627</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1778612648627</updated>
+    </task>
+    <task id="LOCAL-00007" summary="refactor fn names">
+      <option name="closed" value="true" />
+      <created>1778612664641</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1778612664641</updated>
+    </task>
+    <task id="LOCAL-00008" summary="testing &amp; doodling">
+      <option name="closed" value="true" />
+      <created>1778615503228</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1778615503228</updated>
+    </task>
+    <task id="LOCAL-00009" summary="idk, late commit">
+      <option name="closed" value="true" />
+      <created>1779213317119</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1779213317119</updated>
+    </task>
+    <task id="LOCAL-00010" summary="some testing">
+      <option name="closed" value="true" />
+      <created>1779220896744</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1779220896744</updated>
+    </task>
+    <option name="localTasksCounter" value="11" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="begin refactor; reimagine buffer reader" />
     <MESSAGE value="doodling" />
-    <option name="LAST_COMMIT_MESSAGE" value="doodling" />
+    <MESSAGE value="message common headers wip" />
+    <MESSAGE value="testing &amp; debugging" />
+    <MESSAGE value="names" />
+    <MESSAGE value="fn names refactor" />
+    <MESSAGE value="refactor fn names" />
+    <MESSAGE value="testing &amp; doodling" />
+    <MESSAGE value="idk, late commit" />
+    <MESSAGE value="some testing" />
+    <option name="LAST_COMMIT_MESSAGE" value="some testing" />
   </component>
 </project>
