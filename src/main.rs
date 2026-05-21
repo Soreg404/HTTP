@@ -17,6 +17,7 @@ fn main() {
 		--abc--\r\n";
 
 	rc.push_bytes(sample);
+	println!("after push bytes");
 	match rc.is_finished() {
 		Some(Ok(())) => {}
 		_ => panic!(),

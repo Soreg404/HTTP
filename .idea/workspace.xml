@@ -7,9 +7,11 @@
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="be1319c8-0367-41a7-bc8e-d7e8ed876809" name="Changes" comment="rework">
-      <change afterPath="$PROJECT_DIR$/src/proto/header_parser.rs" afterDir="false" />
+    <list default="true" id="be1319c8-0367-41a7-bc8e-d7e8ed876809" name="Changes" comment="back to state reader &amp; new header parser">
+      <change afterPath="$PROJECT_DIR$/src/proto/rdx.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/proto/header_parser.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/header_parser.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/proto/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/mod.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/proto/request_collector.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/request_collector.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/proto/state_reader.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/state_reader.rs" afterDir="false" />
@@ -114,7 +116,7 @@
       <option name="presentableId" value="Default" />
       <updated>1774618977672</updated>
       <workItem from="1774618980768" duration="11763000" />
-      <workItem from="1779242032833" duration="48125000" />
+      <workItem from="1779242032833" duration="65781000" />
     </task>
     <task id="LOCAL-00001" summary="begin refactor; reimagine buffer reader">
       <option name="closed" value="true" />
@@ -212,7 +214,23 @@
       <option name="project" value="LOCAL" />
       <updated>1779291959869</updated>
     </task>
-    <option name="localTasksCounter" value="13" />
+    <task id="LOCAL-00013" summary="back state reader &amp; new header parser">
+      <option name="closed" value="true" />
+      <created>1779301184893</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1779301184893</updated>
+    </task>
+    <task id="LOCAL-00014" summary="back to state reader &amp; new header parser">
+      <option name="closed" value="true" />
+      <created>1779301190292</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1779301190292</updated>
+    </task>
+    <option name="localTasksCounter" value="15" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -242,6 +260,8 @@
     <MESSAGE value="some testing" />
     <MESSAGE value="doodles and new ideas and redo" />
     <MESSAGE value="rework" />
-    <option name="LAST_COMMIT_MESSAGE" value="rework" />
+    <MESSAGE value="back state reader &amp; new header parser" />
+    <MESSAGE value="back to state reader &amp; new header parser" />
+    <option name="LAST_COMMIT_MESSAGE" value="back to state reader &amp; new header parser" />
   </component>
 </project>

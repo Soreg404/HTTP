@@ -1,77 +1,56 @@
 use crate::consts::{Method, MimeType, Version};
+use crate::proto::header_parser::HeaderParser;
+use crate::proto::rdx::Rdx;
+use crate::proto::state_reader::{Poll, StateReader};
 use crate::proto::url::UrlMeta;
 
 pub struct RequestCollector {
 	buffer: Vec<u8>,
-	collector_meta: CollectorMeta,
-	collector_message_common: CollectorMessageCommon,
-	collector_request_specific: CollectorRequestSpecific,
+	collector_state: CollectorState,
+	message_common: MessageCommon,
+	request_basic: RequestBasic,
 }
 
-struct CollectorRequestSpecific {
+struct RequestBasic {
 	method: Method,
 	url_rdx: Rdx,
 	url_meta: UrlMeta,
 }
 
-struct CollectorMeta {
+struct CollectorState {
 	finished: Option<Result<(), CollectError>>,
 	stage: ProcStage,
-	buf_head: usize,
-	buf_base: usize,
+	state_reader: StateReader,
 }
 
-struct CollectorMessageCommon {
+struct MessageCommon {
 	version: Version,
 
-	headers: Vec<Header>,
+	headers: Vec<TmpHeader>,
 
 	content_length: Option<usize>,
 	boundary_rdx: Option<Rdx>,
 
-	body_meta: Option<Rdx>,
+	body: Option<Rdx>,
 	attachments: Vec<Attachment>,
+
+	current_attachment: Attachment,
 }
 
-struct Header {
+pub struct TmpHeader {
 	name: Rdx,
 	value: Rdx,
 }
 
-#[derive(Debug, Default, Clone, Copy, Eq, PartialEq)]
-pub struct Rdx {
-	from: usize,
-	to: usize,
-}
-
-impl Rdx {
-	pub fn new(from: usize, to: usize) -> Self {
-		assert!(from <= to);
-		Self { from, to }
-	}
-	pub fn with_base(self, base: usize) -> Self {
-		Self {
-			from: self.from + base,
-			to: self.to + base,
-		}
-	}
-	pub fn from(&self) -> usize { self.from }
-	pub fn to(&self) -> usize { self.to }
-	pub fn get<'a>(&self, from: &'a [u8]) -> &'a [u8] {
-		&from[self.from..self.to]
-	}
-	pub fn len(&self) -> usize {
-		self.to - self.from
-	}
-}
-
+#[derive(Debug, Clone)]
 struct Attachment {
 	name: Rdx,
+	filename: Option<Rdx>,
 	mime_type: MimeType,
+	data: Rdx,
 }
 
-#[derive(Copy, Clone, Debug)]
-#[derive(PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum CollectError {
 	TBD,
 	IllegalCharacter,
@@ -79,52 +58,56 @@ pub enum CollectError {
 	InvalidUrl,
 	InvalidVersion,
 	InvalidContentTypeHeader,
+	InvalidHeader,
 }
 
 #[derive(Debug, Copy, Clone)]
 enum ProcStage {
 	FirstLine,
 	MainHeaders,
+
 	PreBody,
 	Body(ProcBody),
 }
 
 #[derive(Debug, Clone, Copy)]
 enum ProcBody {
-	Normal {
-		length: usize,
-	},
+	Normal,
 	Chunked,
-	Multipart {
-		init: bool,
-		boundary_rdx: Rdx,
-	},
+	Multipart(ProcMultipart),
 }
 
-enum TakeResult<T> {
-	Ready(T),
-	More,
+#[derive(Clone, Copy, Debug)]
+enum ProcMultipart {
+	Init,
+	Headers,
+	Data,
 }
 
 impl RequestCollector {
 	pub fn new() -> Self {
 		Self {
 			buffer: vec![],
-			collector_meta: CollectorMeta {
+			collector_state: CollectorState {
 				finished: None,
 				stage: ProcStage::FirstLine,
-				buf_head: 0,
-				buf_base: 0,
+				state_reader: StateReader::new(),
 			},
-			collector_message_common: CollectorMessageCommon {
+			message_common: MessageCommon {
 				version: Version::HTTP_0_9,
 				headers: vec![],
 				content_length: None,
 				boundary_rdx: None,
-				body_meta: None,
 				attachments: vec![],
+				body: None,
+				current_attachment: Attachment {
+					name: Default::default(),
+					filename: None,
+					mime_type: MimeType::Unspecified,
+					data: Default::default(),
+				},
 			},
-			collector_request_specific: CollectorRequestSpecific {
+			request_basic: RequestBasic {
 				method: Method::UNKNOWN,
 				url_rdx: Default::default(),
 				url_meta: Default::default(),
@@ -135,185 +118,374 @@ impl RequestCollector {
 	pub fn push_bytes(&mut self, bytes: &[u8]) {
 		self.buffer.extend_from_slice(bytes);
 
-		let mut safety_switch = 0;
+		match self.collector_state.stage.clone() {
+			ProcStage::FirstLine => {
+				match self.collector_state.state_reader.take_line(&self.buffer) {
+					Poll::Pending => return,
+					Poll::Ready(line) => {
+						match self.request_basic
+							.parse_request_line(
+								line.get(&self.buffer),
+								&mut self.message_common.version,
+							) {
+							Err(e) => {
+								self.collector_state.finished = Some(Err(e));
+							}
+							Ok(()) => {
+								self.collector_state.stage = ProcStage::MainHeaders;
 
-		loop {
-			println!("push_bytes() loop");
-			assert!(self.collector_meta.finished.is_none(),
-					"forgor to return? stage: {:?}", self.collector_meta.stage);
-
-			match self.collector_meta.stage.clone() {
-				ProcStage::FirstLine => {
-					println!("first line");
-					match self.collector_meta.take_line(&self.buffer) {
-						TakeResult::More => return,
-						TakeResult::Ready(line) => {
-							println!("ready ({:?})", String::from_utf8_lossy(&line));
-							match self.collector_request_specific
-								.parse_request_line(
-									line,
-									&mut self.collector_message_common.version,
-								) {
-								Err(e) => {
-									self.collector_meta.finished = Some(Err(e));
-									println!("err: {e:?}");
-									return;
-								}
-								Ok(()) => {
-									self.collector_meta.stage = ProcStage::MainHeaders;
-									println!("ok");
-								}
+								self.message_common.process_buffer(
+									&mut self.buffer,
+									&mut self.collector_state,
+								);
 							}
 						}
-					}
-				}
-				ProcStage::MainHeaders => {
-					println!("main headers");
-					let idx_base = self.collector_meta.buf_base;
-					match self.collector_meta.take_line(&self.buffer) {
-						TakeResult::More => return,
-						TakeResult::Ready(line) => {
-							println!("ready ({:?})", String::from_utf8_lossy(&line));
-							if line.trim_ascii().is_empty() {
-								println!("empty header line");
-								if !line.is_empty() {
-									self.collector_meta.finished = Some(Err(CollectError::TBD));
-									return;
-								} else {
-									self.collector_meta.stage = ProcStage::PreBody
-								}
-							} else {
-								println!("non empty header line");
-								match parse_header_line(line) {
-									Err(e) => {
-										self.collector_meta.finished = Some(Err(e));
-										return;
-									}
-									Ok(header) => {
-										let name = header.name.get(line);
-										let value = header.value.get(line);
-										println!(
-											"dbg header: {:?}:{:?}",
-											String::from_utf8_lossy(name),
-											String::from_utf8_lossy(value),
-										);
-
-										let header_based = Header {
-											name: header.name.with_base(idx_base),
-											value: header.value.with_base(idx_base),
-										};
-										println!(
-											"header based: {:?}:{:?}",
-											String::from_utf8_lossy(
-												header_based.name.get(&self.buffer)),
-											String::from_utf8_lossy(
-												header_based.value.get(&self.buffer)),
-										);
-										let value_base = header_based.value.from;
-
-										self.collector_message_common.push_header(header_based);
-
-										if name.eq_ignore_ascii_case(b"content-length") {
-											match su8_to_dec(value) {
-												Err(()) => {
-													self.collector_meta.finished = Some(Err(CollectError::TBD));
-													return;
-												}
-												Ok(v) => {
-													self.collector_message_common.content_length = Some(v);
-												}
-											}
-										} else if name
-											.eq_ignore_ascii_case(b"content-type") {
-											match parse_multipart_content_type_header(value) {
-												Err(e) => {
-													self.collector_meta.finished = Some(Err(e));
-													return;
-												}
-												Ok(None) => {}
-												Ok(Some(v)) => {
-													self.collector_message_common
-														.boundary_rdx = Some(v.with_base(value_base));
-													println!("found boundary: {:?}",
-															 String::from_utf8_lossy(self.collector_message_common
-																 .boundary_rdx
-																 .unwrap()
-																 .get(&self.buffer)))
-												}
-											};
-										}
-									}
-								};
-							}
-						}
-					}
-				}
-				ProcStage::PreBody => {
-					println!("pre-body");
-					match self.collector_message_common.content_length {
-						None => {
-							self.collector_meta.finished = Some(Ok(()));
-							return;
-						}
-						Some(v) => {
-							match self.collector_message_common.boundary_rdx {
-								None => {
-									self.collector_meta.stage = ProcStage::Body(
-										ProcBody::Normal { length: v }
-									);
-								}
-								Some(rdx) => {
-									self.collector_meta.stage = ProcStage::Body(
-										ProcBody::Multipart {
-											init: true,
-											boundary_rdx: rdx,
-										}
-									)
-								}
-							}
-						}
-					}
-				}
-
-				ProcStage::Body(v) => match v {
-					ProcBody::Normal { length } => {
-						println!("body normal");
-						if self.collector_meta.buf_base + length <= self.buffer.len() {
-							let body_rdx = Rdx::new(
-								self.collector_meta.buf_base,
-								self.collector_meta.buf_base + length,
-							);
-							self.collector_meta.finished = Some(Ok(()));
-							println!("finished: {:?}", String::from_utf8_lossy(
-								body_rdx.get(&self.buffer)
-							));
-						}
-						return;
-					}
-					ProcBody::Chunked => todo!(),
-					ProcBody::Multipart {
-						init,
-						boundary_rdx,
-					} => {
-						let boundary = boundary_rdx.get(&self.buffer);
-
 					}
 				}
 			}
-
-			safety_switch += 1;
-			if safety_switch > 10 {
-				return;
+			_ => {
+				self.message_common.process_buffer(
+					&mut self.buffer,
+					&mut self.collector_state,
+				)
 			}
 		}
 	}
 
 	pub fn is_finished(&self) -> Option<Result<(), CollectError>> {
-		self.collector_meta.finished.clone()
+		self.collector_state.finished.clone()
 	}
 }
 
-impl CollectorRequestSpecific {
+impl MessageCommon {
+	pub fn process_buffer(
+		&mut self,
+		buffer: &mut [u8],
+		collector_state: &mut CollectorState,
+	) {
+		loop {
+			match collector_state.stage.clone() {
+				ProcStage::FirstLine => unreachable!(),
+				ProcStage::MainHeaders => {
+					match collector_state.state_reader.take_line(buffer) {
+						Poll::Pending => return,
+						Poll::Ready(line) => {
+							self.process_header_line(
+								buffer,
+								line,
+								collector_state,
+							)
+						}
+					}
+				}
+				ProcStage::PreBody => {
+					match self.content_length {
+						None => {
+							collector_state.finished = Some(Ok(()));
+						}
+						Some(_) => {
+							match self.boundary_rdx {
+								None => {
+									collector_state.stage =
+										ProcStage::Body(ProcBody::Normal);
+								}
+								Some(_) => {
+									collector_state.stage =
+										ProcStage::Body(
+											ProcBody::Multipart(
+												ProcMultipart::Init))
+								}
+							}
+						}
+					}
+				}
+				ProcStage::Body(ProcBody::Normal) => {
+					let content_length = self.content_length.unwrap();
+
+					let body_start = collector_state.state_reader.base;
+					let body_end = body_start + content_length;
+
+					if body_end > buffer.len() {
+						return;
+					}
+
+					self.body = Some(Rdx::new(body_start, body_end));
+					collector_state.finished = Some(Ok(()));
+
+					return;
+				}
+				ProcStage::Body(ProcBody::Chunked) => todo!(),
+				ProcStage::Body(ProcBody::Multipart(pm)) => match pm {
+					ProcMultipart::Init => {
+						println!("multipart init");
+						let boundary = self.boundary_rdx.unwrap().get(buffer);
+						println!("lookin for boundary: {:?}",
+								 String::from_utf8_lossy(boundary));
+
+						match collector_state.state_reader.take_attachment(buffer, boundary) {
+							Poll::Pending => return,
+							Poll::Ready(bi) => {
+								println!("init found attachment, data: {:?}",
+										 String::from_utf8_lossy(bi.data.get(buffer)));
+
+								if bi.is_last {
+									collector_state.finished = Some(Ok(()));
+									return;
+								}
+								collector_state.stage =
+									ProcStage::Body(
+										ProcBody::Multipart(
+											ProcMultipart::Headers));
+							}
+						};
+					}
+					ProcMultipart::Headers => {
+						println!("multipart headers");
+
+						let line = match collector_state
+							.state_reader.take_line(buffer) {
+							Poll::Pending => return,
+							Poll::Ready(line) => line
+						};
+
+						println!("[multipart headers] line: {:?}",
+								 String::from_utf8_lossy(line.get(buffer)));
+
+						let line_bytes = line.get(buffer);
+						if line_bytes.trim_ascii().is_empty() {
+							if !line_bytes.is_empty() {
+								collector_state.finished = Some(Err(CollectError::TBD));
+								return;
+							}
+							collector_state.stage =
+								ProcStage::Body(
+									ProcBody::Multipart(
+										ProcMultipart::Data));
+
+							self.attachments.push(self.current_attachment.clone());
+
+							println!("[multipart headers] empty line, pushing attachment: \n\
+							{:?}", self.current_attachment.clone());
+
+							continue
+						}
+
+						let mut hp = match HeaderParser::new(line_bytes) {
+							Err(()) => {
+								collector_state.finished = Some(Err(CollectError::InvalidHeader));
+								return;
+							}
+							Ok(hp) => hp
+						};
+
+						let f_name = hp.field_name()
+							.get(line_bytes);
+
+						if f_name.eq_ignore_ascii_case(b"content-disposition") {
+							println!("[multiart headers] parsing content-disposition");
+							match hp.next_atom() {
+								None => {
+									collector_state.finished = Some(Err(CollectError::TBD));
+									return;
+								}
+								Some(s) => {
+									if !s.get(line_bytes)
+										.eq_ignore_ascii_case(b"form-data") {
+										collector_state.finished = Some(Err(CollectError::TBD));
+										return;
+									}
+								}
+							}
+							println!("[mh] form-data atom found");
+							let mut a_name = None::<Rdx>;
+							let mut a_filename = None::<Rdx>;
+							match hp.next_attribute() {
+								None | Some(Err(())) => {
+									collector_state.finished = Some(Err(CollectError::TBD));
+									return;
+								}
+								Some(Ok(a)) => {
+									if a.key.get(line_bytes)
+										.eq_ignore_ascii_case(b"name") {
+										a_name = Some(a.value.with_base(line.from()));
+									} else if a.key.get(line_bytes)
+										.eq_ignore_ascii_case(b"filename") {
+										a_filename = Some(a.value.with_base(line.from()));
+									}
+								}
+							}
+							println!("first attribute, a_name: {:?}, a_filename: {:?}",
+									 a_name, a_filename);
+							if let Some(n) = a_name {
+								println!("a_name: {:?}",
+										 String::from_utf8_lossy(n.get(buffer)));
+							}
+
+							match hp.next_attribute() {
+								None => {
+									if a_name.is_none() {
+										collector_state.finished = Some(Err(CollectError::TBD));
+										return;
+									}
+								}
+								Some(Err(())) => {
+									collector_state.finished = Some(Err(CollectError::TBD));
+									return;
+								}
+								Some(Ok(a)) => {
+									if a.key.get(line_bytes)
+										.eq_ignore_ascii_case(b"name") {
+										if a_name.is_some() {
+											collector_state.finished = Some(Err(CollectError::TBD));
+											return;
+										}
+										a_name = Some(a.value.with_base(line.from()));
+									} else if a.key.get(line_bytes)
+										.eq_ignore_ascii_case(b"filename") {
+										if a_filename.is_some() {
+											collector_state.finished = Some(Err(CollectError::TBD));
+											return;
+										}
+										a_filename = Some(a.value.with_base(line.from()));
+									}
+								}
+							}
+							println!("second attribute, a_name: {:?}, a_filename: {:?}",
+									 a_name, a_filename);
+							if let Some(n) = a_name {
+								println!("a_name: {:?}",
+										 String::from_utf8_lossy(n.get(buffer)));
+							}
+
+							self.current_attachment.name = a_name.unwrap();
+							self.current_attachment.filename = a_filename;
+						} else if f_name.eq_ignore_ascii_case(b"content-type") {} else {
+							collector_state.finished = Some(Err(CollectError::TBD));
+							return;
+						}
+					}
+					ProcMultipart::Data => {
+						println!("multipart data");
+
+						let boundary = self.boundary_rdx.unwrap().get(buffer);
+						match collector_state.state_reader.take_attachment(buffer, boundary) {
+							Poll::Pending => return,
+							Poll::Ready(bi) => {
+								collector_state.stage =
+									ProcStage::Body(
+										ProcBody::Multipart(
+											ProcMultipart::Headers));
+
+								self.attachments.last_mut().unwrap().data = bi.data;
+
+								println!("attachment completed, data:\n{:.100?}",
+								String::from_utf8_lossy(bi.data.get(buffer)));
+
+								if bi.is_last {
+									collector_state.finished = Some(Ok(()));
+									return;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	fn process_header_line(
+		&mut self,
+		buffer: &[u8],
+		line: Rdx,
+		collector_state: &mut CollectorState,
+	) {
+		let line_bytes = line.get(buffer);
+		if line_bytes.trim_ascii().is_empty() {
+			if !line_bytes.is_empty() {
+				collector_state.finished = Some(Err(CollectError::TBD));
+				return;
+			}
+			collector_state.stage = ProcStage::PreBody;
+			return;
+		}
+
+		let mut hp = match HeaderParser::new(line_bytes) {
+			Err(()) => {
+				collector_state.finished = Some(Err(CollectError::InvalidHeader));
+				return;
+			}
+			Ok(hp) => hp
+		};
+
+		{
+			let h = TmpHeader {
+				name: hp.field_name().with_base(line.from()),
+				value: hp.field_body().with_base(line.from()),
+			};
+			println!(
+				"pushed header: {:?}:{:?}",
+				String::from_utf8_lossy(h.name.get(buffer)),
+				String::from_utf8_lossy(h.value.get(buffer)),
+			);
+			self.headers.push(h);
+		}
+
+		let f_name = hp.field_name()
+			.get(line_bytes);
+
+		if f_name.eq_ignore_ascii_case(b"content-length") {
+			let value = hp.field_body()
+				.get(line_bytes);
+			match su8_to_dec(value) {
+				Err(()) => {
+					collector_state.finished = Some(Err(CollectError::InvalidHeader));
+					return;
+				}
+				Ok(v) => {
+					if self.content_length.is_some() {
+						collector_state.finished = Some(Err(CollectError::TBD));
+						return;
+					}
+					self.content_length = Some(v);
+				}
+			}
+		} else if f_name.eq_ignore_ascii_case(b"content-type") {
+			match hp.next_type() {
+				Err(()) => {
+					collector_state.finished = Some(Err(CollectError::InvalidContentTypeHeader));
+					return;
+				}
+				Ok(ct) => {
+					let ct_main = ct.main.get(line_bytes);
+					let ct_sub = ct.sub.get(line_bytes);
+					if ct_main.eq_ignore_ascii_case(b"multipart") &&
+						ct_sub.eq_ignore_ascii_case(b"form-data") {
+						match hp.next_attribute() {
+							None | Some(Err(())) => {
+								collector_state.finished =
+									Some(Err(CollectError::InvalidContentTypeHeader));
+								return;
+							}
+							Some(Ok(at)) => {
+								if !at.key.get(line_bytes)
+									.eq_ignore_ascii_case(
+										b"boundary") {
+									collector_state.finished =
+										Some(Err(CollectError::InvalidContentTypeHeader));
+									return;
+								}
+
+								self.boundary_rdx = Some(at.value.with_base(line.from()));
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+impl RequestBasic {
 	fn parse_request_line(&mut self, line: &[u8], version: &mut Version)
 						  -> Result<(), CollectError> {
 		let mut i = 0;
@@ -380,74 +552,6 @@ impl CollectorRequestSpecific {
 
 		Ok(())
 	}
-}
-
-impl CollectorMeta {
-	fn take_line<'a>(&mut self, buffer: &'a [u8]) -> TakeResult<&'a [u8]> {
-		while self.buf_head < buffer.len() {
-			match buffer[self.buf_base..=self.buf_head].strip_suffix(b"\n") {
-				None => {}
-				Some(s) => {
-					let s = s.strip_suffix(b"\r").unwrap_or(s);
-
-					self.buf_head += 1;
-					self.buf_base = self.buf_head;
-					return TakeResult::Ready(s);
-				}
-			}
-			self.buf_head += 1;
-		}
-
-		TakeResult::More
-	}
-}
-
-impl CollectorMessageCommon {
-	fn push_header(&mut self, header: Header) {}
-}
-
-fn parse_header_line(line: &[u8]) -> Result<Header, CollectError> {
-	enum Part {
-		Name,
-		Value,
-	}
-	let mut p = Part::Name;
-	let mut i = 0;
-	let mut colon_idx = 0;
-	let mut value_first_byte = None::<usize>;
-	let mut value_last_byte = 0;
-	while i < line.len() {
-		match p {
-			Part::Name => {
-				// todo: check valid chars in field name
-				if line[i] == b':' {
-					colon_idx = i;
-					p = Part::Value;
-					value_last_byte = i + 1;
-				}
-			}
-			Part::Value => {
-				// todo: check valid
-				if line[i] != b' ' {
-					if value_first_byte.is_none() {
-						value_first_byte = Some(i);
-					}
-					value_last_byte = i;
-				}
-			}
-		}
-		i += 1;
-	}
-
-	Ok(
-		Header {
-			name: Rdx::new(0, colon_idx),
-			value: Rdx::new(
-				value_first_byte.unwrap_or(value_last_byte),
-				value_last_byte + 1,
-			),
-		}
-	)
 }
 
 fn su8_to_dec(s: &[u8]) -> Result<usize, ()> {

@@ -103,6 +103,7 @@ impl StatusCode {
 	}
 }
 
+#[derive(Clone, Debug)]
 pub enum MimeType {
 	Unspecified,
 	Multipart,
