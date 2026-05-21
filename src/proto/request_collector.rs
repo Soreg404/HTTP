@@ -1,3 +1,4 @@
+use std::path::Path;
 use crate::consts::{Method, MimeType, Version};
 use crate::proto::header_parser::HeaderParser;
 use crate::proto::rdx::Rdx;
@@ -267,7 +268,7 @@ impl MessageCommon {
 							println!("[multipart headers] empty line, pushing attachment: \n\
 							{:?}", self.current_attachment.clone());
 
-							continue
+							continue;
 						}
 
 						let mut hp = match HeaderParser::new(line_bytes) {
@@ -379,7 +380,7 @@ impl MessageCommon {
 								self.attachments.last_mut().unwrap().data = bi.data;
 
 								println!("attachment completed, data:\n{:.100?}",
-								String::from_utf8_lossy(bi.data.get(buffer)));
+										 String::from_utf8_lossy(bi.data.get(buffer)));
 
 								if bi.is_last {
 									collector_state.finished = Some(Ok(()));
@@ -681,4 +682,30 @@ fn test_content_type_header_parser() {
 	println!("==================");
 	assert_eq!(p(b"multipart/form-data; boundary=\"abc\""),
 			   Ok(Some(Rdx::new(31, 34))));
+}
+
+
+impl RequestCollector {
+	pub fn dump_first_attachment_data(&self) {
+		match self.message_common.attachments.first() {
+			None => {
+				println!("fuk u no attachments");
+			}
+			Some(a) => {
+				println!("attachment: name={:?}, filename={:?}",
+						 String::from_utf8_lossy(a.name.get(&self.buffer)),
+						 a.filename.map(|v| String::from_utf8_lossy(v.get(&self.buffer)))
+				);
+				println!("dumping to file...");
+
+				let filename = match a.filename {
+					None => b"file.png",
+					Some(v) => v.get(&self.buffer)
+				};
+				let filename = String::from_utf8_lossy(filename).to_string();
+
+				std::fs::write(Path::new(&filename), a.data.get(&self.buffer)).unwrap();
+			}
+		}
+	}
 }

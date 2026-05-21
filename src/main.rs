@@ -23,5 +23,7 @@ fn main() {
 		_ => panic!(),
 	};
 
+	rc.dump_first_attachment_data();
+
 	// let req = rc.
 }
