@@ -7,10 +7,13 @@
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="be1319c8-0367-41a7-bc8e-d7e8ed876809" name="Changes" comment="doodling">
-      <change afterPath="$PROJECT_DIR$/samples.rs" afterDir="false" />
+    <list default="true" id="be1319c8-0367-41a7-bc8e-d7e8ed876809" name="Changes" comment="samples.rs">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/samples.rs" beforeDir="false" afterPath="$PROJECT_DIR$/samples.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/proto/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/proto/request_collector.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/request_collector.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/proto/url.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/url.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -118,7 +121,7 @@
       <option name="presentableId" value="Default" />
       <updated>1774618977672</updated>
       <workItem from="1774618980768" duration="11763000" />
-      <workItem from="1779242032833" duration="71496000" />
+      <workItem from="1779242032833" duration="79736000" />
     </task>
     <task id="LOCAL-00001" summary="begin refactor; reimagine buffer reader">
       <option name="closed" value="true" />
@@ -248,7 +251,31 @@
       <option name="project" value="LOCAL" />
       <updated>1779327299348</updated>
     </task>
-    <option name="localTasksCounter" value="17" />
+    <task id="LOCAL-00017" summary="samples">
+      <option name="closed" value="true" />
+      <created>1779400435710</created>
+      <option name="number" value="00017" />
+      <option name="presentableId" value="LOCAL-00017" />
+      <option name="project" value="LOCAL" />
+      <updated>1779400435710</updated>
+    </task>
+    <task id="LOCAL-00018" summary="samples">
+      <option name="closed" value="true" />
+      <created>1779400446401</created>
+      <option name="number" value="00018" />
+      <option name="presentableId" value="LOCAL-00018" />
+      <option name="project" value="LOCAL" />
+      <updated>1779400446401</updated>
+    </task>
+    <task id="LOCAL-00019" summary="samples.rs">
+      <option name="closed" value="true" />
+      <created>1779400450387</created>
+      <option name="number" value="00019" />
+      <option name="presentableId" value="LOCAL-00019" />
+      <option name="project" value="LOCAL" />
+      <updated>1779400450387</updated>
+    </task>
+    <option name="localTasksCounter" value="20" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -281,6 +308,8 @@
     <MESSAGE value="back to state reader &amp; new header parser" />
     <MESSAGE value="kinda sorta working fine" />
     <MESSAGE value="doodling" />
-    <option name="LAST_COMMIT_MESSAGE" value="doodling" />
+    <MESSAGE value="samples" />
+    <MESSAGE value="samples.rs" />
+    <option name="LAST_COMMIT_MESSAGE" value="samples.rs" />
   </component>
 </project>

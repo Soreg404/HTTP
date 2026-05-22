@@ -1,11 +1,12 @@
 pub mod consts;
 mod url;
-pub use url::Url;
+pub use url::url_codec;
 
 mod header;
 mod config;
 
-pub mod request_collector;
+mod request_collector;
+pub use request_collector::RequestCollector;
 mod state_reader;
 mod header_parser;
 mod rdx;

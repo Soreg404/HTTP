@@ -1,9 +1,9 @@
-use std::path::Path;
 use crate::consts::{Method, MimeType, Version};
 use crate::proto::header_parser::HeaderParser;
 use crate::proto::rdx::Rdx;
 use crate::proto::state_reader::{Poll, StateReader};
-use crate::proto::url::UrlMeta;
+use crate::proto::url::UrlInfo;
+use std::path::Path;
 
 pub struct RequestCollector {
 	buffer: Vec<u8>,
@@ -14,8 +14,7 @@ pub struct RequestCollector {
 
 struct RequestBasic {
 	method: Method,
-	url_rdx: Rdx,
-	url_meta: UrlMeta,
+	url: UrlInfo,
 }
 
 struct CollectorState {
@@ -110,8 +109,7 @@ impl RequestCollector {
 			},
 			request_basic: RequestBasic {
 				method: Method::UNKNOWN,
-				url_rdx: Default::default(),
-				url_meta: Default::default(),
+				url: Default::default(),
 			},
 		}
 	}
@@ -170,19 +168,19 @@ impl MessageCommon {
 				ProcStage::MainHeaders => {
 					match collector_state.state_reader.take_line(buffer) {
 						Poll::Pending => return,
-						Poll::Ready(line) => {
+						Poll::Ready(line) =>
 							self.process_header_line(
 								buffer,
 								line,
 								collector_state,
-							)
-						}
+							),
 					}
 				}
 				ProcStage::PreBody => {
 					match self.content_length {
 						None => {
 							collector_state.finished = Some(Ok(()));
+							return;
 						}
 						Some(_) => {
 							match self.boundary_rdx {
@@ -400,12 +398,15 @@ impl MessageCommon {
 		line: Rdx,
 		collector_state: &mut CollectorState,
 	) {
+		println!("process header line");
+
 		let line_bytes = line.get(buffer);
 		if line_bytes.trim_ascii().is_empty() {
 			if !line_bytes.is_empty() {
 				collector_state.finished = Some(Err(CollectError::TBD));
 				return;
 			}
+			println!("valid empty line");
 			collector_state.stage = ProcStage::PreBody;
 			return;
 		}
@@ -522,18 +523,24 @@ impl RequestBasic {
 			}
 			i += 1;
 		}
-		self.url_meta = match sp_idx {
+		self.url = match sp_idx {
 			None => return Err(CollectError::TBD),
 			Some(v) => {
 				let url_bytes = &line[begin_idx..v];
 				println!("dbg url_bytes: {:?}", String::from_utf8_lossy(url_bytes));
-				match UrlMeta::parse_bytes(url_bytes) {
+				match UrlInfo::parse_bytes(url_bytes) {
+					Err(()) => return Err(CollectError::InvalidUrl),
 					Ok(v) => {
-						self.url_rdx = Rdx::new(begin_idx, begin_idx + url_bytes.len());
-						println!("url meta: {v:?}, rdx: {:?}", self.url_rdx);
+						println!("url_info:");
+						println!("path: {:?}", String::from_utf8_lossy(v.path.get(url_bytes)));
+						println!("query: {:?}",
+								 v.query_string.map(
+									 |v| String::from_utf8_lossy(v.get(url_bytes))));
+						println!("frag: {:?}",
+								 v.fragment.map(
+									 |v| String::from_utf8_lossy(v.get(url_bytes))));
 						v
 					}
-					Err(e) => return Err(CollectError::InvalidUrl)
 				}
 			}
 		};

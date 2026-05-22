@@ -17,3 +17,7 @@ content-type: text/plain\r\n\
 hello worl!!\r\n\
 --abc--\r\n\
 ";
+
+pub const MINIMAL: &[u8] = b"GET /path/?query=val#frag HTTP/1.1\r\n\r\n";
+pub const MINIMAL2: &[u8] = b"GET /?# HTTP/1.1\r\n\r\n";
+pub const MINIMAL3: &[u8] = b"GET / HTTP/1.1\r\n\r\n";
