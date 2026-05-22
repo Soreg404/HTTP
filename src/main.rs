@@ -6,7 +6,7 @@ fn main() {
 
 	let mut rc = http::RequestCollector::new();
 
-	rc.push_bytes(samples::MINIMAL3);
+	rc.push_bytes(samples::MULTIPART1);
 
 	match rc.is_finished() {
 		None => {

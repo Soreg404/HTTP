@@ -1,4 +1,4 @@
-use http::request_collector::RequestCollector;
+use http::RequestCollector;
 
 #[test]
 fn collect_request_and_get_uri() {

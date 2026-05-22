@@ -1,4 +1,3 @@
-use crate::consts::StatusCode::{IM_A_TEAPOT, NOT_FOUND, SUCCESS};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug)]
@@ -95,16 +94,17 @@ impl StatusCode {
 impl StatusCode {
 	pub fn from_value(v: u32) -> Result<Self, ()> {
 		match v {
-			200 => Ok(SUCCESS),
-			404 => Ok(NOT_FOUND),
-			418 => Ok(IM_A_TEAPOT),
+			200 => Ok(StatusCode::SUCCESS),
+			404 => Ok(StatusCode::NOT_FOUND),
+			418 => Ok(StatusCode::IM_A_TEAPOT),
 			_ => Err(())
 		}
 	}
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub enum MimeType {
+	#[default]
 	Unspecified,
 	Multipart,
 	TextPlain,

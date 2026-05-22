@@ -1,5 +1,6 @@
 use crate::proto::rdx::Rdx;
 
+#[derive(Default)]
 pub struct StateReader {
 	pub base: usize,
 	pub head: usize,
@@ -12,12 +13,6 @@ pub enum Poll<T> {
 }
 
 impl StateReader {
-	pub fn new() -> Self {
-		Self {
-			base: 0,
-			head: 0,
-		}
-	}
 	pub fn take_line(&mut self, buffer: &[u8]) -> Poll<Rdx> {
 		while self.head < buffer.len() {
 			if buffer[self.head] == b'\n' {
@@ -102,7 +97,7 @@ pub struct BoundaryInfo {
 #[test]
 fn simple_take_line() {
 	let sample = b"line 1\r\nline 2\nline 3\r\nincomplete";
-	let mut r = StateReader::new();
+	let mut r = StateReader::default();
 	assert_eq!(r.take_line(sample), Poll::Ready(Rdx::new(0, 6)));
 	assert_eq!(r.take_line(sample), Poll::Ready(Rdx::new(8, 14)));
 	assert_eq!(r.take_line(sample), Poll::Ready(Rdx::new(15, 21)));
@@ -113,7 +108,7 @@ fn simple_take_line() {
 #[test]
 fn take_attachment() {
 	let sample = b"somedata\r\n--abc\r\nanotherdata\r\n--abc--\r\n";
-	let mut r = StateReader::new();
+	let mut r = StateReader::default();
 	match r.take_attachment(sample, b"abc") {
 		Poll::Pending => panic!(),
 		Poll::Ready(bi) => {
