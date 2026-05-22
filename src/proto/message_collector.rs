@@ -14,6 +14,7 @@ pub enum CollectError {
 	InvalidVersion,
 	InvalidContentTypeHeader,
 	InvalidHeader,
+	InvalidRequestLine,
 }
 
 #[derive(Clone, Copy, Debug)]
