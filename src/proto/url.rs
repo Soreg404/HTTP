@@ -3,6 +3,7 @@ use crate::proto::rdx::Rdx;
 #[derive(Default, Copy, Clone, Debug)]
 pub struct UrlInfo {
 	// scheme://domain:port(/path)[?(query_string)][(#fragment)]
+	pub url_whole: Rdx,
 	pub path: Rdx,
 	pub query_string: Option<Rdx>,
 	pub fragment: Option<Rdx>,
@@ -70,8 +71,8 @@ impl UrlInfo {
 }
 
 pub mod url_codec {
-	pub fn decode(bytes: &[u8], dest_buffer: &mut [u8])
-				  -> Result<usize, usize> {
+	pub fn url_decode(bytes: &[u8], dest_buffer: &mut [u8])
+					  -> Result<usize, usize> {
 		let mut buffer_too_small = false;
 		let mut buf_head = 0;
 		let mut i = 0;
@@ -116,7 +117,7 @@ pub mod url_codec {
 		}
 	}
 
-	pub fn decode_to_vec(bytes: &[u8]) -> Vec<u8> {
+	pub fn url_decode_to_vec(bytes: &[u8]) -> Vec<u8> {
 		let mut s = Vec::new();
 		let mut i = 0;
 		while i < bytes.len() {
@@ -139,7 +140,7 @@ pub mod url_codec {
 		s
 	}
 
-	pub fn encode(bytes: &[u8], dest_buffer: &mut [u8]) -> Result<usize, usize> {
+	pub fn url_encode(bytes: &[u8], dest_buffer: &mut [u8]) -> Result<usize, usize> {
 		let mut buffer_too_small = false;
 		let mut buf_head = 0usize;
 		let mut count = 0usize;
@@ -152,7 +153,7 @@ pub mod url_codec {
 		todo!()
 	}
 
-	pub fn encode_to_vec(bytes: &[u8]) -> Vec<u8> {
+	pub fn url_encode_to_vec(bytes: &[u8]) -> Vec<u8> {
 		todo!()
 	}
 
@@ -185,21 +186,21 @@ pub mod url_codec {
 		}
 
 		#[test]
-		fn url_decode() {
+		fn decode() {
 			let mut buf = [0u8; 20];
-			assert_eq!(decode(b"hello%20world", &mut buf), Ok(11));
+			assert_eq!(url_decode(b"hello%20world", &mut buf), Ok(11));
 			assert_eq!(&buf[0..11], b"hello world");
-			assert_eq!(decode(b"123456789%20123456789%20XYZ", &mut buf), Err(23));
+			assert_eq!(url_decode(b"123456789%20123456789%20XYZ", &mut buf), Err(23));
 			assert_eq!(&buf[0..20], b"123456789 123456789 ");
-			assert_eq!(decode(b"%20%20%20", &mut buf), Ok(3));
+			assert_eq!(url_decode(b"%20%20%20", &mut buf), Ok(3));
 			assert_eq!(&buf[0..3], b"   ");
-			assert_eq!(decode(b"a+b+c", &mut buf), Ok(5));
+			assert_eq!(url_decode(b"a+b+c", &mut buf), Ok(5));
 			assert_eq!(&buf[0..5], b"a b c");
 
-			assert_eq!(decode_to_vec(b"hello%20world"), Vec::from(b"hello world"));
-			assert_eq!(decode_to_vec(b"123456789%20123456789%20XYZ"),
+			assert_eq!(url_decode_to_vec(b"hello%20world"), Vec::from(b"hello world"));
+			assert_eq!(url_decode_to_vec(b"123456789%20123456789%20XYZ"),
 					   Vec::from(b"123456789 123456789 XYZ"));
-			assert_eq!(decode_to_vec(b"%20%20%20"), Vec::from(b"   "));
+			assert_eq!(url_decode_to_vec(b"%20%20%20"), Vec::from(b"   "));
 		}
 	}
 }

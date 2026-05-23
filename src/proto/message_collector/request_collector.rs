@@ -3,6 +3,7 @@ use crate::proto::message_collector::{CollectError, MessageCollector, MessageCol
 use crate::proto::state_reader::Poll;
 use crate::proto::url::UrlInfo;
 use std::fmt::{Debug, Formatter};
+use crate::proto::rdx::Rdx;
 
 pub struct RequestCollector {
 	buffer: Vec<u8>,
@@ -102,6 +103,7 @@ impl RequestInfo {
 		self.url = match UrlInfo::parse_bytes(&line_bytes[url_start..i]) {
 			Err(()) => return Err(CollectError::InvalidUrl),
 			Ok(mut v) => {
+				v.url_whole = Rdx::new(url_start, i);
 				v.path = v.path.offset(url_start);
 				v.query_string = v.query_string.map(|v| v.offset(url_start));
 				v.fragment = v.fragment.map(|v| v.offset(url_start));
@@ -131,6 +133,8 @@ impl Debug for RequestCollectorFinished {
 		writeln!(f, "Request {{")?;
 		writeln!(f, "  method: {:?}", self.method)?;
 		writeln!(f, "  url:")?;
+		writeln!(f, "    url_whole: {:?}",
+				 String::from_utf8_lossy(self.url.url_whole.get(&self.buffer)))?;
 		writeln!(f, "    path:     {:?}",
 				 String::from_utf8_lossy(self.url.path.get(&self.buffer)))?;
 		writeln!(f, "    query:    {:?}",
@@ -196,5 +200,20 @@ impl Debug for RequestCollectorFinished {
 		write!(f, "}}")?;
 
 		Ok(())
+	}
+}
+
+impl RequestCollectorFinished {
+	pub fn get_url_raw(&self) -> &[u8] {
+		self.url.url_whole.get(&self.buffer)
+	}
+	pub fn get_url_path_raw(&self) -> &[u8] {
+		self.url.path.get(&self.buffer)
+	}
+	pub fn get_url_query_string_raw(&self) -> Option<&[u8]> {
+		self.url.query_string.map(|v| v.get(&self.buffer))
+	}
+	pub fn get_url_fragment_raw(&self) -> Option<&[u8]> {
+		self.url.fragment.map(|v| v.get(&self.buffer))
 	}
 }

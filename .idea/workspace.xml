@@ -7,21 +7,13 @@
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="be1319c8-0367-41a7-bc8e-d7e8ed876809" name="Changes" comment="refactor">
-      <change afterPath="$PROJECT_DIR$/src/proto/header/mod.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/proto/header/parser.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/proto/message_collector/headers_iter.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/proto/response_builder.rs" afterDir="false" />
+    <list default="true" id="be1319c8-0367-41a7-bc8e-d7e8ed876809" name="Changes" comment="refactor &amp; debug print">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/consts.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/consts.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/header_parser.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/header_parser.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/proto/interface.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/interface.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/message_collector.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/message_collector.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/proto/message_collector/request_collector.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/message_collector/request_collector.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/mod.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/rdx.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/rdx.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/http_api.rs" beforeDir="false" afterPath="$PROJECT_DIR$/tests/http_api.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/proto/response_builder.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/response_builder.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/proto/url.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/url.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -139,7 +131,7 @@
       <option name="presentableId" value="Default" />
       <updated>1774618977672</updated>
       <workItem from="1774618980768" duration="11763000" />
-      <workItem from="1779242032833" duration="108589000" />
+      <workItem from="1779242032833" duration="117593000" />
     </task>
     <task id="LOCAL-00001" summary="begin refactor; reimagine buffer reader">
       <option name="closed" value="true" />
@@ -317,7 +309,15 @@
       <option name="project" value="LOCAL" />
       <updated>1779476583818</updated>
     </task>
-    <option name="localTasksCounter" value="23" />
+    <task id="LOCAL-00023" summary="refactor &amp; debug print">
+      <option name="closed" value="true" />
+      <created>1779502259225</created>
+      <option name="number" value="00023" />
+      <option name="presentableId" value="LOCAL-00023" />
+      <option name="project" value="LOCAL" />
+      <updated>1779502259225</updated>
+    </task>
+    <option name="localTasksCounter" value="24" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -354,6 +354,7 @@
     <MESSAGE value="samples.rs" />
     <MESSAGE value="url update" />
     <MESSAGE value="refactor" />
-    <option name="LAST_COMMIT_MESSAGE" value="refactor" />
+    <MESSAGE value="refactor &amp; debug print" />
+    <option name="LAST_COMMIT_MESSAGE" value="refactor &amp; debug print" />
   </component>
 </project>
