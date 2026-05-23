@@ -10,7 +10,7 @@ fn collect_request_and_get_uri() {
 		host: localhost\r\n\
 		\r\n";
 	rc.push_bytes(sample);
-	match rc.is_finished() {
+	match rc.parse_result() {
 		Some(Ok(())) => {}
 		_ => panic!(),
 	};

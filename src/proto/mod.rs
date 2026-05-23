@@ -8,3 +8,5 @@ mod header_parser;
 mod rdx;
 pub mod interface;
 mod message_collector;
+
+mod response_builder;

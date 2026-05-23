@@ -110,8 +110,8 @@ impl<'a> HeaderBodyParser<'a> {
 					return Err(());
 				}
 				Ok(TypeRdx {
-					main: Rdx::new(0, slash_pos).with_base(w.from()),
-					sub: Rdx::new(slash_pos + 1, w.len()).with_base(w.from()),
+					main: Rdx::new(0, slash_pos).offset(w.from()),
+					sub: Rdx::new(slash_pos + 1, w.len()).offset(w.from()),
 				})
 			}
 		}

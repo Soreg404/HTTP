@@ -5,6 +5,8 @@ use crate::proto::state_reader::{Poll, StateReader};
 
 pub mod request_collector;
 
+pub mod headers_iter;
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum CollectError {
 	TBD,
@@ -65,7 +67,7 @@ pub struct MessageCollector {
 	content_length: Option<usize>,
 	boundary: Option<Rdx>,
 
-	body: Option<Rdx>,
+	body: Rdx,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -87,7 +89,7 @@ impl MessageCollector {
 			version: Version::HTTP_1_1,
 			content_length: None,
 			boundary: None,
-			body: None,
+			body: Rdx::default(),
 		}
 	}
 
@@ -131,13 +133,15 @@ impl MessageCollector {
 					}
 				}
 				ProcStage::PreBody => {
-					println!("pre-body");
+					let body_start = self.state_reader.base;
+					self.body = Rdx::new(body_start, body_start);
 					match self.content_length {
 						None => {
 							self.finished = Some(Ok(()));
 							return;
 						}
 						Some(content_length) => {
+							self.body = Rdx::new(body_start, body_start + content_length);
 							match self.boundary {
 								None => {
 									self.stage =
@@ -157,18 +161,9 @@ impl MessageCollector {
 					}
 				}
 				ProcStage::Body(ProcBody::Normal { content_length }) => {
-					println!("body normal, length: {content_length}");
-
-					let body_start = self.state_reader.base;
-					let body_end = body_start + content_length;
-
-					if body_end > buffer.len() {
-						return;
+					if self.state_reader.base + content_length <= buffer.len() {
+						self.finished = Some(Ok(()));
 					}
-
-					self.body = Some(Rdx::new(body_start, body_end));
-					self.finished = Some(Ok(()));
-
 					return;
 				}
 				ProcStage::Body(ProcBody::Chunked) => todo!(),
@@ -179,17 +174,11 @@ impl MessageCollector {
 						stage
 					}) => match stage {
 					ProcMultipart::Init => {
-						println!("body multipart, init, length: {content_length}, boundary: {:?}",
-								 String::from_utf8_lossy(boundary.get(buffer)));
-
 						let boundary_bytes = boundary.get(buffer);
 
 						match self.state_reader.take_attachment(buffer, boundary_bytes) {
 							Poll::Pending => return,
 							Poll::Ready(bi) => {
-								println!("init found attachment, data: {:?}",
-										 String::from_utf8_lossy(bi.data.get(buffer)));
-
 								if bi.is_last {
 									self.finished = Some(Ok(()));
 									return;
@@ -206,17 +195,12 @@ impl MessageCollector {
 						};
 					}
 					ProcMultipart::Headers => {
-						println!("multipart headers");
-
 						let line = match self
 							.state_reader.take_line(buffer) {
 							Poll::Pending => return,
 							Poll::Ready(line) => line
 						};
 						let line_bytes = line.get(buffer);
-
-						println!("[multipart headers] line: {:?}",
-								 String::from_utf8_lossy(line_bytes));
 
 						if line_bytes.trim_ascii().is_empty() {
 							if !line_bytes.is_empty() {
@@ -236,8 +220,6 @@ impl MessageCollector {
 										boundary,
 										stage: ProcMultipart::Data,
 									});
-
-							println!("[multipart headers] empty line");
 
 							continue;
 						}
@@ -259,7 +241,6 @@ impl MessageCollector {
 						);
 
 						if f_name_bytes.eq_ignore_ascii_case(b"content-disposition") {
-							println!("[multipart headers] parsing content-disposition");
 							match hbp.next_atom() {
 								None => {
 									self.finished = Some(Err(CollectError::InvalidHeader));
@@ -273,23 +254,21 @@ impl MessageCollector {
 									}
 								}
 							}
-							println!("[multipart headers] form-data atom found");
 							let mut a_name = None::<Rdx>;
 							let mut a_filename = None::<Rdx>;
 							match hbp.next_attribute() {
 								None | Some(Err(())) => {
-									println!("[multipart headers] first attrib error");
 									self.finished = Some(Err(CollectError::InvalidHeader));
 									return;
 								}
 								Some(Ok(a)) => {
 									if a.key.get(f_body_bytes)
 										.eq_ignore_ascii_case(b"name") {
-										a_name = Some(a.value.with_base(
+										a_name = Some(a.value.offset(
 											line.from() + header.body.from()));
 									} else if a.key.get(f_body_bytes)
 										.eq_ignore_ascii_case(b"filename") {
-										a_filename = Some(a.value.with_base(
+										a_filename = Some(a.value.offset(
 											line.from() + header.body.from()));
 									} else {
 										self.finished = Some(Err(CollectError::InvalidHeader));
@@ -297,12 +276,6 @@ impl MessageCollector {
 									}
 								}
 							}
-							println!(
-								"[multipart headers] second attribute, \
-								a_name: {:?}, a_filename: {:?}",
-								a_name.map(|v| String::from_utf8_lossy(v.get(buffer))),
-								a_filename.map(|v| String::from_utf8_lossy(v.get(buffer)))
-							);
 
 							match hbp.next_attribute() {
 								None => {
@@ -323,7 +296,7 @@ impl MessageCollector {
 												Some(Err(CollectError::InvalidHeader));
 											return;
 										}
-										a_name = Some(a.value.with_base(
+										a_name = Some(a.value.offset(
 											line.from() + header.body.from()));
 									} else if a.key.get(f_body_bytes)
 										.eq_ignore_ascii_case(b"filename") {
@@ -332,7 +305,7 @@ impl MessageCollector {
 												Some(Err(CollectError::InvalidHeader));
 											return;
 										}
-										a_filename = Some(a.value.with_base(
+										a_filename = Some(a.value.offset(
 											line.from() + header.body.from()));
 									} else {
 										self.finished = Some(Err(CollectError::InvalidHeader));
@@ -340,12 +313,6 @@ impl MessageCollector {
 									}
 								}
 							}
-							println!(
-								"[multipart headers] second attribute, \
-								a_name: {:?}, a_filename: {:?}",
-								a_name.map(|v| String::from_utf8_lossy(v.get(buffer))),
-								a_filename.map(|v| String::from_utf8_lossy(v.get(buffer)))
-							);
 
 							self.attachments.last_mut().unwrap().name = a_name;
 							self.attachments.last_mut().unwrap().filename = a_filename;
@@ -355,8 +322,6 @@ impl MessageCollector {
 						}
 					}
 					ProcMultipart::Data => {
-						println!("multipart data");
-
 						let boundary_bytes = boundary.get(buffer);
 						match self.state_reader.take_attachment(buffer, boundary_bytes) {
 							Poll::Pending => return,
@@ -370,9 +335,6 @@ impl MessageCollector {
 										});
 
 								self.attachments.last_mut().unwrap().data = bi.data;
-
-								println!("[multipart data] attachment completed, data:\n{:.100?}",
-										 String::from_utf8_lossy(bi.data.get(buffer)));
 
 								if bi.is_last {
 									self.finished = Some(Ok(()));
@@ -392,15 +354,12 @@ impl MessageCollector {
 		buffer: &[u8],
 		line: Rdx,
 	) {
-		println!("process header line");
-
 		let line_bytes = line.get(buffer);
 		if line_bytes.trim_ascii().is_empty() {
 			if !line_bytes.is_empty() {
 				self.finished = Some(Err(CollectError::TBD));
 				return;
 			}
-			println!("valid empty line");
 			self.stage = ProcStage::PreBody;
 			return;
 		}
@@ -413,14 +372,9 @@ impl MessageCollector {
 			Ok(v) => v
 		};
 
-		println!(
-			"pushed header: {:?}:{:?}",
-			String::from_utf8_lossy(header.name.get(line_bytes)),
-			String::from_utf8_lossy(header.body.get(line_bytes)),
-		);
 		self.headers.push(HeaderRdx {
-			name: header.name.with_base(line.from()),
-			body: header.body.with_base(line.from()),
+			name: header.name.offset(line.from()),
+			body: header.body.offset(line.from()),
 		});
 
 		let f_name = header.name.get(line_bytes);
@@ -438,7 +392,6 @@ impl MessageCollector {
 						self.finished = Some(Err(CollectError::TBD));
 						return;
 					}
-					println!("found content-length header: {v}");
 					self.content_length = Some(v);
 				}
 			}
@@ -469,7 +422,7 @@ impl MessageCollector {
 								}
 
 								self.boundary = Some(
-									at.value.with_base(
+									at.value.offset(
 										line.from() + header.body.from()
 									)
 								);
@@ -491,4 +444,27 @@ fn su8_to_dec(s: &[u8]) -> Result<usize, ()> {
 		v = v * 10 + (c - b'0') as usize;
 	}
 	Ok(v)
+}
+
+
+
+pub struct MessageCollectorFinished {
+	attachments: Vec<Attachment>,
+	headers: Vec<HeaderRdx>,
+
+	version: Version,
+
+	body: Rdx,
+}
+
+impl From<MessageCollector> for MessageCollectorFinished {
+	fn from(value: MessageCollector) -> Self {
+		println!("MessageCollectorFinished from MessageCollector");
+		Self {
+			attachments: value.attachments,
+			headers: value.headers,
+			version: value.version,
+			body: value.body,
+		}
+	}
 }

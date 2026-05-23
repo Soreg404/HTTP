@@ -6,10 +6,10 @@ pub struct Rdx {
 
 impl Rdx {
 	pub fn new(from: usize, to: usize) -> Self {
-		assert!(from <= to);
+		assert!(from <= to, "Rdx constraint failed: from={from} > to={to}");
 		Self { from, to }
 	}
-	pub fn with_base(self, base: usize) -> Self {
+	pub fn offset(self, base: usize) -> Self {
 		Self {
 			from: self.from + base,
 			to: self.to + base,

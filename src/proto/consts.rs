@@ -1,4 +1,4 @@
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Debug)]
 pub enum Method {
@@ -38,7 +38,7 @@ impl Display for Method {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum Version {
 	HTTP_0_9,
 	HTTP_1_0,
@@ -69,6 +69,11 @@ impl Display for Version {
 			Version::HTTP_2_0 => "2.0",
 			Version::HTTP_3_0 => "3.0"
 		})
+	}
+}
+impl Debug for Version {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		<Self as Display>::fmt(self, f)
 	}
 }
 
@@ -105,12 +110,11 @@ impl StatusCode {
 #[derive(Clone, Debug, Default)]
 pub enum MimeType {
 	#[default]
-	Unspecified,
-	Multipart,
 	TextPlain,
 	TextHtml,
 	TextJson,
 	Image,
 	ImagePng,
 	ImageJpg,
+	MultipartFormData,
 }
