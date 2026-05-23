@@ -1,4 +1,4 @@
-use http::{StatusCode, Version};
+use http::{ResponseBuilder, StatusCode, Version};
 use std::io::{Read, Write};
 
 #[path = "../samples.rs"]
@@ -48,16 +48,20 @@ fn run_server() {
 	}
 }
 
-fn match_route(path_bytes: &[u8]) -> Result<http::ResponseBuilder, ()> {
+fn match_route(path_bytes: &[u8]) -> Result<ResponseBuilder, ()> {
 	let mut part_it = path_bytes
 		.split(|c| *c == b'/')
 		.filter(|part| !part.is_empty())
 		.map(|part| {
-			http::url_decode_to_vec(part)
+			let r = http::url_decode_to_vec(part);
+			println!("decoded: {:?}", String::from_utf8_lossy(r.as_slice()));
+			r
 		});
 
+	println!("match route on path_bytes: {:?}", String::from_utf8_lossy(path_bytes));
+
 	Ok(match part_it.next() {
-		None => http::ResponseBuilder{
+		None => ResponseBuilder {
 			status_code: StatusCode::SUCCESS,
 			status_description: "OK".to_string(),
 			version: Version::HTTP_1_1,
@@ -67,16 +71,16 @@ fn match_route(path_bytes: &[u8]) -> Result<http::ResponseBuilder, ()> {
 			body: b"<h1>main page</h1><h2>hello!</h2>".to_vec(),
 		},
 		Some(p) => match p.as_slice() {
-			b"hello" => http::ResponseBuilder {
-					status_code: StatusCode::SUCCESS,
-					status_description: "OK".to_string(),
-					version: Version::HTTP_1_1,
-					headers: vec![
-						b"content-type: text/html".to_vec(),
-					],
-					body: include_bytes!("../local/m.txt").to_vec(),
-				},
-			b"img" => http::ResponseBuilder {
+			b"hello" => ResponseBuilder {
+				status_code: StatusCode::SUCCESS,
+				status_description: "OK".to_string(),
+				version: Version::HTTP_1_1,
+				headers: vec![
+					b"content-type: text/html".to_vec(),
+				],
+				body: include_bytes!("../local/m.txt").to_vec(),
+			},
+			b"img" => ResponseBuilder {
 				status_code: StatusCode::SUCCESS,
 				status_description: "OK".to_string(),
 				version: Version::HTTP_1_1,
@@ -85,7 +89,16 @@ fn match_route(path_bytes: &[u8]) -> Result<http::ResponseBuilder, ()> {
 				],
 				body: include_bytes!("../local/upload.jpg").to_vec(),
 			},
-			_ => http::ResponseBuilder::quick_404(),
+
+			s if s == "cześć".as_bytes() => ResponseBuilder {
+				status_code: StatusCode::SUCCESS,
+				status_description: "DOBRZE".to_string(),
+				version: Version::HTTP_1_1,
+				headers: vec![b"content-type: text/html".to_vec()],
+				body: b"<h1>Polish fucker detected</h1>".to_vec(),
+			},
+
+			_ => ResponseBuilder::quick_404()
 		}
 	})
 }

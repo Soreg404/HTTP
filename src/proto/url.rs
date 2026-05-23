@@ -129,9 +129,9 @@ pub mod url_codec {
 					None => {}
 					Some(v) => {
 						s.push(v);
-						i += 3;
 					}
 				}
+				i += 3;
 			} else {
 				s.push(bytes[i]);
 				i += 1;
@@ -159,15 +159,15 @@ pub mod url_codec {
 
 	fn hex(b1: u8, b2: u8) -> Option<u8> {
 		let hi = match b1 {
-			b'a'..b'f' => b1 - b'a' + 10,
-			b'A'..b'F' => b1 - b'A' + 10,
-			b'0'..b'9' => b1 - b'0',
+			b'a'..=b'f' => b1 - b'a' + 10,
+			b'A'..=b'F' => b1 - b'A' + 10,
+			b'0'..=b'9' => b1 - b'0',
 			_ => return None
 		};
 		let lo = match b2 {
-			b'a'..b'f' => b2 - b'a' + 10,
-			b'A'..b'F' => b2 - b'A' + 10,
-			b'0'..b'9' => b2 - b'0',
+			b'a'..=b'f' => b2 - b'a' + 10,
+			b'A'..=b'F' => b2 - b'A' + 10,
+			b'0'..=b'9' => b2 - b'0',
 			_ => return None
 		};
 		Some(hi << 4 | lo)
@@ -201,6 +201,7 @@ pub mod url_codec {
 			assert_eq!(url_decode_to_vec(b"123456789%20123456789%20XYZ"),
 					   Vec::from(b"123456789 123456789 XYZ"));
 			assert_eq!(url_decode_to_vec(b"%20%20%20"), Vec::from(b"   "));
+			assert_eq!(url_decode_to_vec(b"cze%C5%9B%C4%87").as_slice(), "cześć".as_bytes());
 		}
 	}
 }
