@@ -1,9 +1,10 @@
 use crate::proto::consts::{Method, Version};
 use crate::proto::message_collector::{CollectError, MessageCollector, MessageCollectorFinished, MessageType};
 use crate::proto::state_reader::Poll;
-use crate::proto::url::UrlInfo;
+use crate::proto::url::{UrlInfo};
 use std::fmt::{Debug, Formatter};
 use crate::proto::rdx::Rdx;
+use crate::UrlPartsIterator;
 
 pub struct RequestCollector {
 	buffer: Vec<u8>,
@@ -209,6 +210,9 @@ impl RequestCollectorFinished {
 	}
 	pub fn get_url_path_raw(&self) -> &[u8] {
 		self.url.path.get(&self.buffer)
+	}
+	pub fn get_url_path_iter(&self) -> UrlPartsIterator {
+		todo!()
 	}
 	pub fn get_url_query_string_raw(&self) -> Option<&[u8]> {
 		self.url.query_string.map(|v| v.get(&self.buffer))

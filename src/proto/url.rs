@@ -1,3 +1,4 @@
+use std::ops::Deref;
 use crate::proto::rdx::Rdx;
 
 #[derive(Default, Copy, Clone, Debug)]
@@ -6,6 +7,8 @@ pub struct UrlInfo {
 	pub url_whole: Rdx,
 	pub path: Rdx,
 	pub query_string: Option<Rdx>,
+
+	// todo: Fragment in url might be an error actually...
 	pub fragment: Option<Rdx>,
 }
 
@@ -49,7 +52,6 @@ impl UrlInfo {
 			if i != query_string_start {
 				url_info.query_string = Some(Rdx::new(query_string_start, i));
 			}
-
 			if i == bytes.len() {
 				return Ok(url_info);
 			}
@@ -62,17 +64,18 @@ impl UrlInfo {
 			}
 			i += 1;
 		}
-		if i != fragment_start {
-			url_info.fragment = Some(Rdx::new(fragment_start, i));
-		}
+		url_info.fragment = Some(Rdx::new(fragment_start, i));
 
 		Ok(url_info)
 	}
 }
 
 pub mod url_codec {
-	pub fn url_decode(bytes: &[u8], dest_buffer: &mut [u8])
-					  -> Result<usize, usize> {
+	pub fn url_decode<'a, 'b>(
+		bytes: &'a [u8],
+		dest_buffer: &'b mut [u8],
+	)
+		-> Result<&'b [u8], usize> {
 		let mut buffer_too_small = false;
 		let mut buf_head = 0;
 		let mut i = 0;
@@ -113,7 +116,7 @@ pub mod url_codec {
 		if buffer_too_small {
 			Err(buf_head)
 		} else {
-			Ok(buf_head)
+			Ok(&dest_buffer[..buf_head])
 		}
 	}
 
@@ -188,20 +191,121 @@ pub mod url_codec {
 		#[test]
 		fn decode() {
 			let mut buf = [0u8; 20];
-			assert_eq!(url_decode(b"hello%20world", &mut buf), Ok(11));
-			assert_eq!(&buf[0..11], b"hello world");
+			assert_eq!(url_decode(b"hello%20world", &mut buf), Ok(b"hello world".as_slice()));
 			assert_eq!(url_decode(b"123456789%20123456789%20XYZ", &mut buf), Err(23));
 			assert_eq!(&buf[0..20], b"123456789 123456789 ");
-			assert_eq!(url_decode(b"%20%20%20", &mut buf), Ok(3));
-			assert_eq!(&buf[0..3], b"   ");
-			assert_eq!(url_decode(b"a+b+c", &mut buf), Ok(5));
-			assert_eq!(&buf[0..5], b"a b c");
+			assert_eq!(url_decode(b"%20%20%20", &mut buf), Ok(b"   ".as_slice()));
+			assert_eq!(url_decode(b"a+b+c", &mut buf), Ok(b"a b c".as_slice()));
 
 			assert_eq!(url_decode_to_vec(b"hello%20world"), Vec::from(b"hello world"));
 			assert_eq!(url_decode_to_vec(b"123456789%20123456789%20XYZ"),
 					   Vec::from(b"123456789 123456789 XYZ"));
 			assert_eq!(url_decode_to_vec(b"%20%20%20"), Vec::from(b"   "));
 			assert_eq!(url_decode_to_vec(b"cze%C5%9B%C4%87").as_slice(), "cześć".as_bytes());
+			assert_eq!(url_decode_to_vec(b"%22").as_slice(), b"\"");
+		}
+	}
+}
+
+pub mod url_iter {
+	pub struct UrlPartsIterator<'a> {
+		target: &'a [u8],
+		head: usize,
+	}
+	impl<'a> UrlPartsIterator<'a> {
+		pub fn new(encoded_url_path: &'a [u8]) -> Self {
+			Self {
+				target: encoded_url_path.strip_prefix(b"/")
+					.unwrap_or(encoded_url_path),
+				head: 0,
+			}
+		}
+		pub fn decoded_to_vec(self)
+							  -> UrlPartsIteratorDecodeVec<'a> {
+			UrlPartsIteratorDecodeVec {
+				it: self,
+			}
+		}
+		pub fn decoded_to_buffer<'b>(self, buffer: &'b mut [u8])
+									 -> UrlPartsDecodeBuf<'a, 'b> {
+			UrlPartsDecodeBuf {
+				it: self,
+				buffer,
+			}
+		}
+	}
+	impl<'a> Iterator for UrlPartsIterator<'a> {
+		type Item = &'a [u8];
+
+		fn next(&mut self) -> Option<Self::Item> {
+			if self.head == self.target.len() {
+				return None;
+			}
+
+			while self.head < self.target.len() && self.target[self.head] == b'/' {
+				self.head += 1;
+			}
+			if self.head == self.target.len() {
+				return None;
+			}
+
+			let part_start = self.head;
+
+			while self.head < self.target.len() && self.target[self.head] != b'/' {
+				self.head += 1;
+			}
+
+			let part_end = self.head;
+
+			if self.head < self.target.len() {
+				self.head += 1;
+			}
+
+			Some(&self.target[part_start..part_end])
+		}
+	}
+
+	pub struct UrlPartsIteratorDecodeVec<'a> {
+		it: UrlPartsIterator<'a>,
+	}
+	impl Iterator for UrlPartsIteratorDecodeVec<'_> {
+		type Item = Vec<u8>;
+		fn next(&mut self) -> Option<Self::Item> {
+			Some(super::url_codec::url_decode_to_vec(self.it.next()?))
+		}
+	}
+
+	pub struct UrlPartsDecodeBuf<'a, 'b> {
+		it: UrlPartsIterator<'a>,
+		buffer: &'b mut [u8],
+	}
+	impl UrlPartsDecodeBuf<'_, '_> {
+		pub fn next(&mut self) -> Option<Result<&[u8], usize>> {
+			Some(super::url_codec::url_decode(self.it.next()?, &mut self.buffer))
+		}
+	}
+
+	#[cfg(test)]
+	mod url_parts_it_tests {
+		use super::UrlPartsIterator;
+
+		#[test]
+		fn t1() {
+			let target = b"/cze%C5%9B%C4%87////cz%C4%99%C5%9B%C4%87///";
+			let mut it = UrlPartsIterator::new(target);
+			assert_eq!(it.next(), Some(b"cze%C5%9B%C4%87".as_slice()));
+			assert_eq!(it.next(), Some(b"cz%C4%99%C5%9B%C4%87".as_slice()));
+
+			let mut it = UrlPartsIterator::new(target)
+				.decoded_to_vec();
+			assert_eq!(it.next(), Some("cześć".as_bytes().to_vec()));
+			assert_eq!(it.next(), Some("część".as_bytes().to_vec()));
+
+			let mut buffer = [0u8; 20];
+			let mut it = UrlPartsIterator::new(target)
+				.decoded_to_buffer(&mut buffer);
+			assert_eq!(it.next(), Some(Ok("cześć".as_bytes())));
+			assert_eq!(it.next(), Some(Ok("część".as_bytes())));
 		}
 	}
 }

@@ -86,12 +86,12 @@ pub enum StatusCode {
 }
 
 impl StatusCode {
-	pub fn as_desc(&self) -> &'static str {
+	pub fn as_desc(&self) -> &'static [u8] {
 		use StatusCode::*;
 		match self {
-			SUCCESS => "OK",
-			NOT_FOUND => "NOT FOUND",
-			IM_A_TEAPOT => "I'M A TEAPOT",
+			SUCCESS => b"OK",
+			NOT_FOUND => b"NOT FOUND",
+			IM_A_TEAPOT => b"I'M A TEAPOT",
 		}
 	}
 }

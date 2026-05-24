@@ -1,5 +1,8 @@
+use std::borrow::Cow;
 use http::{ResponseBuilder, StatusCode, Version};
+use std::ffi::OsStr;
 use std::io::{Read, Write};
+use std::path::Path;
 
 #[path = "../samples.rs"]
 mod samples;
@@ -49,16 +52,9 @@ fn run_server() {
 }
 
 fn match_route(path_bytes: &[u8]) -> Result<ResponseBuilder, ()> {
-	let mut part_it = path_bytes
-		.split(|c| *c == b'/')
-		.filter(|part| !part.is_empty())
-		.map(|part| {
-			let r = http::url_decode_to_vec(part);
-			println!("decoded: {:?}", String::from_utf8_lossy(r.as_slice()));
-			r
-		});
-
-	println!("match route on path_bytes: {:?}", String::from_utf8_lossy(path_bytes));
+	let mut buffer = Box::new([0u8; 0x4000]);
+	let mut part_it = http::UrlPartsIterator::new(path_bytes)
+		.decoded_to_buffer(buffer.as_mut_slice());
 
 	Ok(match part_it.next() {
 		None => ResponseBuilder {
@@ -70,7 +66,7 @@ fn match_route(path_bytes: &[u8]) -> Result<ResponseBuilder, ()> {
 			],
 			body: b"<h1>main page</h1><h2>hello!</h2>".to_vec(),
 		},
-		Some(p) => match p.as_slice() {
+		Some(Ok(p)) => match p {
 			b"hello" => ResponseBuilder {
 				status_code: StatusCode::SUCCESS,
 				status_description: "OK".to_string(),
@@ -98,7 +94,56 @@ fn match_route(path_bytes: &[u8]) -> Result<ResponseBuilder, ()> {
 				body: b"<h1>Polish fucker detected</h1>".to_vec(),
 			},
 
+			b"serve" => match part_it.next() {
+				None => ResponseBuilder::quick_404(),
+				Some(Err(_n)) => return Err(()),
+				Some(Ok(p)) => {
+					let p = String::from_utf8_lossy(p);
+					let mut dir = std::fs::read_dir(
+						Path::new("local/serve")
+					).unwrap();
+
+					for entry in dir {
+						let entry = match entry {
+							Err(_e) => continue,
+							Ok(v) => v
+						};
+						let path = entry.path();
+						if !path.is_file() {
+							continue;
+						}
+						if path.file_name() != Some(OsStr::new(p.as_ref())) {
+							continue;
+						}
+						let ext = match path.extension() {
+							Some(ext) => ext.to_string_lossy(),
+							None => Cow::from("png")
+						};
+						let ct = {
+							let mut tmp = b"content-type: image/".to_vec();
+							tmp.extend_from_slice(ext.as_bytes());
+							tmp
+						};
+
+						let body = std::fs::read(path).unwrap();
+
+						return Ok(ResponseBuilder {
+							status_code: StatusCode::SUCCESS,
+							status_description: "OK".to_string(),
+							version: Version::HTTP_1_1,
+							headers: vec![
+								ct
+							],
+							body,
+						});
+					}
+
+					ResponseBuilder::quick_404()
+				}
+			}
+
 			_ => ResponseBuilder::quick_404()
-		}
+		},
+		Some(Err(_n)) => return Err(())
 	})
 }

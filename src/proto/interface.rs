@@ -1,5 +1,6 @@
 pub use crate::proto::consts::*;
 
+pub use crate::proto::url::url_iter::*;
 pub use crate::proto::url::url_codec::*;
 
 pub use crate::proto::message_collector::CollectError;
