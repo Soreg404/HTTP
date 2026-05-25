@@ -1,25 +1,83 @@
+use crate::Method;
 use crate::proto::consts::{StatusCode, Version};
 
 pub struct ResponseBuilder {
-	pub status_code: StatusCode,
-	pub status_description: Option<Vec<u8>>,
-	pub version: Version,
+	intl: ResponseBuilderInternal,
+}
 
-	pub headers: Vec<Vec<u8>>,
+pub struct ResponseBuilderMultipart {
+	intl: ResponseBuilderInternal,
+}
 
-	pub body: Vec<u8>,
+struct ResponseBuilderInternal {
+	status_code: StatusCode,
+	status_description: Option<Vec<u8>>,
+	msg: MessageBuilder
+}
+
+pub struct RequestBuilder {
+	method: Method,
+	url: Vec<u8>,
+	msg: MessageBuilder
+}
+
+struct MessageBuilder {
+	version: Version,
+
+	headers: Vec<Vec<u8>>,
+
+	body: Vec<u8>,
+}
+
+trait ResponseBuilderInterfaceIntermediate {
+	fn intl(&mut self) -> &mut ResponseBuilderInternal;
+}
+
+impl ResponseBuilderInterfaceIntermediate for ResponseBuilder {
+	fn intl(&mut self) -> &mut ResponseBuilderInternal {
+		&mut self.intl
+	}
+}
+
+impl ResponseBuilderInterfaceIntermediate for ResponseBuilderMultipart {
+	fn intl(&mut self) -> &mut ResponseBuilderInternal {
+		&mut self.intl
+	}
+}
+
+trait MessageBuilderInterfaceIntermediate {
+	fn msg(&mut self) -> &mut MessageBuilder;
+}
+
+impl MessageBuilderInterfaceIntermediate for ResponseBuilderInternal {
+	fn msg(&mut self) -> &mut MessageBuilder {
+		&mut self.msg
+	}
+}
+
+impl MessageBuilderInterfaceIntermediate for RequestBuilder {
+	fn msg(&mut self) -> &mut MessageBuilder {
+		&mut self.msg
+	}
+}
+
+pub trait ResponseBuilderInterface : ResponseBuilderInterfaceIntermediate {
+	
 }
 
 impl ResponseBuilder {
 	pub fn new() -> Self {
 		Self {
-			status_code: StatusCode::SUCCESS,
-			status_description: None,
-			version: Version::HTTP_1_1,
-			headers: vec![],
-			body: vec![],
+			intl: ResponseBuilderInternal {},
 		}
 	}
+
+	pub fn new_multipart() -> ResponseBuilderMultipart {
+		ResponseBuilderMultipart {
+
+		}
+	}
+
 	pub fn new_status(code: StatusCode) -> Self {
 		Self {
 			status_code: code,
@@ -46,9 +104,7 @@ impl ResponseBuilder {
 		self.body = body;
 		self
 	}
-}
 
-impl ResponseBuilder {
 	pub fn to_bytes(&self) -> Vec<u8> {
 		let mut v = Vec::<u8>::new();
 		v.extend_from_slice(self.version.to_string().as_bytes());

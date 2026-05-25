@@ -9,4 +9,4 @@ mod rdx;
 pub mod interface;
 mod message_collector;
 
-mod response_builder;
+mod message_builder;

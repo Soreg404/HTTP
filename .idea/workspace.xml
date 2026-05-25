@@ -7,14 +7,12 @@
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="be1319c8-0367-41a7-bc8e-d7e8ed876809" name="Changes" comment="fix url decode">
+    <list default="true" id="be1319c8-0367-41a7-bc8e-d7e8ed876809" name="Changes" comment="response builder wip">
+      <change afterPath="$PROJECT_DIR$/src/proto/message_builder.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/consts.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/consts.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/proto/interface.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/interface.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/message_collector/request_collector.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/message_collector/request_collector.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/response_builder.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/response_builder.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/url.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/url.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/proto/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/proto/response_builder.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/response_builder_bench.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -52,25 +50,25 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Cargo.Run http.executor": "Run",
-    "Cargo.Test http.executor": "Run",
-    "Cargo.clean.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.rust.reset.selective.auto.import": "true",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
-    "org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon": "",
-    "org.rust.disableDetachedFileInspectionC:/_/Dev/Rust/Proj/http/samples.rs": "true",
-    "org.rust.first.attach.projects": "true",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Cargo.Run http.executor&quot;: &quot;Run&quot;,
+    &quot;Cargo.Test http.executor&quot;: &quot;Run&quot;,
+    &quot;Cargo.clean.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.rust.reset.selective.auto.import&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;org.rust.cargo.project.model.PROJECT_DISCOVERY&quot;: &quot;true&quot;,
+    &quot;org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon&quot;: &quot;&quot;,
+    &quot;org.rust.disableDetachedFileInspectionC:/_/Dev/Rust/Proj/http/samples.rs&quot;: &quot;true&quot;,
+    &quot;org.rust.first.attach.projects&quot;: &quot;true&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="C:\_\Dev\Rust\Proj\http\src\proto\message_collector" />
@@ -132,7 +130,8 @@
       <option name="presentableId" value="Default" />
       <updated>1774618977672</updated>
       <workItem from="1774618980768" duration="11763000" />
-      <workItem from="1779242032833" duration="140482000" />
+      <workItem from="1779242032833" duration="141249000" />
+      <workItem from="1779677477057" duration="4874000" />
     </task>
     <task id="LOCAL-00001" summary="begin refactor; reimagine buffer reader">
       <option name="closed" value="true" />
@@ -334,7 +333,15 @@
       <option name="project" value="LOCAL" />
       <updated>1779523055533</updated>
     </task>
-    <option name="localTasksCounter" value="26" />
+    <task id="LOCAL-00026" summary="response builder wip">
+      <option name="closed" value="true" />
+      <created>1779644778128</created>
+      <option name="number" value="00026" />
+      <option name="presentableId" value="LOCAL-00026" />
+      <option name="project" value="LOCAL" />
+      <updated>1779644778128</updated>
+    </task>
+    <option name="localTasksCounter" value="27" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -374,6 +381,7 @@
     <MESSAGE value="refactor &amp; debug print" />
     <MESSAGE value="refactor &amp; working demo" />
     <MESSAGE value="fix url decode" />
-    <option name="LAST_COMMIT_MESSAGE" value="fix url decode" />
+    <MESSAGE value="response builder wip" />
+    <option name="LAST_COMMIT_MESSAGE" value="response builder wip" />
   </component>
 </project>
