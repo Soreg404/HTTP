@@ -1,5 +1,5 @@
-use std::ops::Deref;
 use crate::proto::rdx::Rdx;
+use std::ops::Deref;
 
 #[derive(Default, Copy, Clone, Debug)]
 pub struct UrlInfo {
@@ -120,9 +120,9 @@ pub mod url_codec {
 		}
 	}
 
-	pub fn url_decode_to_vec(bytes: &[u8]) -> Vec<u8> {
-		let mut s = Vec::new();
+	pub fn url_decode_to_vec<'a, 'b>(bytes: &'a [u8], vec: &'b mut Vec<u8>) -> &'b [u8] {
 		let mut i = 0;
+		let start = vec.len();
 		while i < bytes.len() {
 			if bytes[i] == b'%' {
 				if i + 2 >= bytes.len() {
@@ -131,16 +131,16 @@ pub mod url_codec {
 				match hex(bytes[i + 1], bytes[i + 2]) {
 					None => {}
 					Some(v) => {
-						s.push(v);
+						vec.push(v);
 					}
 				}
 				i += 3;
 			} else {
-				s.push(bytes[i]);
+				vec.push(bytes[i]);
 				i += 1;
 			}
 		}
-		s
+		&vec[start..]
 	}
 
 	pub fn url_encode(bytes: &[u8], dest_buffer: &mut [u8]) -> Result<usize, usize> {
@@ -197,15 +197,17 @@ pub mod url_codec {
 			assert_eq!(url_decode(b"%20%20%20", &mut buf), Ok(b"   ".as_slice()));
 			assert_eq!(url_decode(b"a+b+c", &mut buf), Ok(b"a b c".as_slice()));
 
-			assert_eq!(url_decode_to_vec(b"hello%20world"), Vec::from(b"hello world"));
-			assert_eq!(url_decode_to_vec(b"123456789%20123456789%20XYZ"),
-					   Vec::from(b"123456789 123456789 XYZ"));
-			assert_eq!(url_decode_to_vec(b"%20%20%20"), Vec::from(b"   "));
-			assert_eq!(url_decode_to_vec(b"cze%C5%9B%C4%87").as_slice(), "cześć".as_bytes());
-			assert_eq!(url_decode_to_vec(b"%22").as_slice(), b"\"");
+			let mut v = Vec::new();
+			assert_eq!(url_decode_to_vec(b"hello%20world", &mut v), b"hello world");
+			assert_eq!(url_decode_to_vec(b"123456789%20123456789%20XYZ", &mut v),
+					   b"123456789 123456789 XYZ");
+			assert_eq!(url_decode_to_vec(b"%20%20%20", &mut v), b"   ");
+			assert_eq!(url_decode_to_vec(b"cze%C5%9B%C4%87", &mut v), "cześć".as_bytes());
+			assert_eq!(url_decode_to_vec(b"%22", &mut v), b"\"");
 		}
 	}
 }
+
 
 pub mod url_iter {
 	pub struct UrlPartsIterator<'a> {
@@ -220,29 +222,13 @@ pub mod url_iter {
 				head: 0,
 			}
 		}
-		pub fn decoded_to_vec(self)
-							  -> UrlPartsIteratorDecodeVec<'a> {
-			UrlPartsIteratorDecodeVec {
-				it: self,
-			}
-		}
-		pub fn decoded_to_buffer<'b>(self, buffer: &'b mut [u8])
-									 -> UrlPartsDecodeBuf<'a, 'b> {
-			UrlPartsDecodeBuf {
-				it: self,
-				buffer,
-			}
-		}
 	}
 	impl<'a> Iterator for UrlPartsIterator<'a> {
-		type Item = &'a [u8];
+		type Item = UrlPart<'a>;
 
 		fn next(&mut self) -> Option<Self::Item> {
-			if self.head == self.target.len() {
-				return None;
-			}
-
-			while self.head < self.target.len() && self.target[self.head] == b'/' {
+			while self.head < self.target.len()
+				&& self.target[self.head] == b'/' {
 				self.head += 1;
 			}
 			if self.head == self.target.len() {
@@ -251,61 +237,47 @@ pub mod url_iter {
 
 			let part_start = self.head;
 
-			while self.head < self.target.len() && self.target[self.head] != b'/' {
+			while self.head < self.target.len()
+				&& self.target[self.head] != b'/' {
 				self.head += 1;
 			}
 
-			let part_end = self.head;
-
-			if self.head < self.target.len() {
-				self.head += 1;
-			}
-
-			Some(&self.target[part_start..part_end])
+			Some(UrlPart {
+				s: &self.target[part_start..self.head]
+			})
+		}
+	}
+	pub struct UrlPart<'a> {
+		s: &'a [u8],
+	}
+	impl<'a> UrlPart<'a> {
+		pub fn raw(&self) -> &[u8] {
+			self.s
+		}
+		pub fn decode_to_buf<'b>(&self, buffer: &'b mut [u8])
+								 -> Result<&'b [u8], usize> {
+			super::url_codec::url_decode(self.s, buffer)
+		}
+		pub fn decode_to_vec<'b>(&self, vec: &'b mut Vec<u8>) -> &'b [u8] {
+			super::url_codec::url_decode_to_vec(self.s, vec)
 		}
 	}
 
-	pub struct UrlPartsIteratorDecodeVec<'a> {
-		it: UrlPartsIterator<'a>,
-	}
-	impl Iterator for UrlPartsIteratorDecodeVec<'_> {
-		type Item = Vec<u8>;
-		fn next(&mut self) -> Option<Self::Item> {
-			Some(super::url_codec::url_decode_to_vec(self.it.next()?))
-		}
-	}
+	#[test]
+	fn url_parts_it_test() {
+		let target = b"/cze%C5%9B%C4%87////cz%C4%99%C5%9B%C4%87///";
+		let mut it = UrlPartsIterator::new(target);
+		assert_eq!(it.next().unwrap().raw(), b"cze%C5%9B%C4%87");
+		assert_eq!(it.next().unwrap().raw(), b"cz%C4%99%C5%9B%C4%87");
 
-	pub struct UrlPartsDecodeBuf<'a, 'b> {
-		it: UrlPartsIterator<'a>,
-		buffer: &'b mut [u8],
-	}
-	impl UrlPartsDecodeBuf<'_, '_> {
-		pub fn next(&mut self) -> Option<Result<&[u8], usize>> {
-			Some(super::url_codec::url_decode(self.it.next()?, &mut self.buffer))
-		}
-	}
+		let mut v = Vec::new();
+		let mut it = UrlPartsIterator::new(target);
+		assert_eq!(it.next().unwrap().decode_to_vec(&mut v), "cześć".as_bytes());
+		assert_eq!(it.next().unwrap().decode_to_vec(&mut v), "część".as_bytes());
 
-	#[cfg(test)]
-	mod url_parts_it_tests {
-		use super::UrlPartsIterator;
-
-		#[test]
-		fn t1() {
-			let target = b"/cze%C5%9B%C4%87////cz%C4%99%C5%9B%C4%87///";
-			let mut it = UrlPartsIterator::new(target);
-			assert_eq!(it.next(), Some(b"cze%C5%9B%C4%87".as_slice()));
-			assert_eq!(it.next(), Some(b"cz%C4%99%C5%9B%C4%87".as_slice()));
-
-			let mut it = UrlPartsIterator::new(target)
-				.decoded_to_vec();
-			assert_eq!(it.next(), Some("cześć".as_bytes().to_vec()));
-			assert_eq!(it.next(), Some("część".as_bytes().to_vec()));
-
-			let mut buffer = [0u8; 20];
-			let mut it = UrlPartsIterator::new(target)
-				.decoded_to_buffer(&mut buffer);
-			assert_eq!(it.next(), Some(Ok("cześć".as_bytes())));
-			assert_eq!(it.next(), Some(Ok("część".as_bytes())));
-		}
+		let mut buffer = [0u8; 20];
+		let mut it = UrlPartsIterator::new(target);
+		assert_eq!(it.next().unwrap().decode_to_buf(&mut buffer), Ok("cześć".as_bytes()));
+		assert_eq!(it.next().unwrap().decode_to_buf(&mut buffer), Ok("część".as_bytes()));
 	}
 }

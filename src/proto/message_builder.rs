@@ -20,8 +20,8 @@ pub struct RequestBuilderMultipart {
 
 
 impl ResponseBuilder {
-	pub fn new() -> ResponseBuilder {}
-	pub fn new_multipart() -> RequestBuilderMultipart {}
+	pub fn new() -> ResponseBuilder {todo!()}
+	pub fn new_multipart() -> RequestBuilderMultipart {todo!()}
 }
 
 
@@ -43,7 +43,7 @@ pub trait ResponseBuilderInterfaceIntermediate {
 	fn intl(&mut self) -> &mut ResponseBuilderInternal;
 }
 pub trait ResponseBuilderInterface: ResponseBuilderInterfaceIntermediate {
-	fn status(&mut self, status_code: StatusCode) -> &mut self {
+	fn status(&mut self, status_code: StatusCode) -> &mut Self {
 		self.intl().status_code = status_code;
 		self
 	}
