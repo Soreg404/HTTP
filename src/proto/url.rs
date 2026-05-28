@@ -208,7 +208,6 @@ pub mod url_codec {
 	}
 }
 
-
 pub mod url_iter {
 	pub struct UrlPartsIterator<'a> {
 		target: &'a [u8],
