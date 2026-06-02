@@ -11,14 +11,9 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="be1319c8-0367-41a7-bc8e-d7e8ed876809" name="Changes" comment="url parts iter update">
-      <change afterPath="$PROJECT_DIR$/src/proto/interface/as_msg.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/proto/interface/ifc1.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/proto/interface/ifc2.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/proto/message.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/interface.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/interface.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/message_builder.rs" beforeDir="false" />
+    <list default="true" id="be1319c8-0367-41a7-bc8e-d7e8ed876809" name="Changes" comment="incomplete ideas, redo, idk &amp; wip">
+      <change afterPath="$PROJECT_DIR$/src/proto/message_a2.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/proto/message_a2/message_a2_collector.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/proto/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/mod.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -147,7 +142,7 @@
       <workItem from="1774618980768" duration="11763000" />
       <workItem from="1779242032833" duration="141249000" />
       <workItem from="1779677477057" duration="11249000" />
-      <workItem from="1780369237230" duration="2560000" />
+      <workItem from="1780369237230" duration="3880000" />
     </task>
     <task id="LOCAL-00001" summary="begin refactor; reimagine buffer reader">
       <option name="closed" value="true" />
@@ -373,7 +368,23 @@
       <option name="project" value="LOCAL" />
       <updated>1779687837339</updated>
     </task>
-    <option name="localTasksCounter" value="29" />
+    <task id="LOCAL-00029" summary="incomplete ideas, redo, idk &amp; wip">
+      <option name="closed" value="true" />
+      <created>1780371836675</created>
+      <option name="number" value="00029" />
+      <option name="presentableId" value="LOCAL-00029" />
+      <option name="project" value="LOCAL" />
+      <updated>1780371836675</updated>
+    </task>
+    <task id="LOCAL-00030" summary="incomplete ideas, redo, idk &amp; wip">
+      <option name="closed" value="true" />
+      <created>1780371843342</created>
+      <option name="number" value="00030" />
+      <option name="presentableId" value="LOCAL-00030" />
+      <option name="project" value="LOCAL" />
+      <updated>1780371843342</updated>
+    </task>
+    <option name="localTasksCounter" value="31" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -415,6 +426,7 @@
     <MESSAGE value="fix url decode" />
     <MESSAGE value="response builder wip" />
     <MESSAGE value="url parts iter update" />
-    <option name="LAST_COMMIT_MESSAGE" value="url parts iter update" />
+    <MESSAGE value="incomplete ideas, redo, idk &amp; wip" />
+    <option name="LAST_COMMIT_MESSAGE" value="incomplete ideas, redo, idk &amp; wip" />
   </component>
 </project>

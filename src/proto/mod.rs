@@ -11,3 +11,4 @@ mod message_collector;
 
 mod message_builder;
 mod message;
+mod message_a2;
