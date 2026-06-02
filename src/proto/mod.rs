@@ -10,3 +10,4 @@ pub mod interface;
 mod message_collector;
 
 mod message_builder;
+mod message;

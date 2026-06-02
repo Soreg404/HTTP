@@ -1,11 +1,24 @@
-use std::borrow::Cow;
 use http::{StatusCode, Version};
-use std::ffi::OsStr;
 use std::io::{Read, Write};
-use std::path::Path;
 
 #[path = "../samples.rs"]
 mod samples;
+
+macro_rules! calculate {
+    // The pattern for a single `eval`
+    (eval $e:expr) => {
+        {
+            let val: usize = $e; // Force types to be integers
+            println!("{} = {}", stringify!{$e}, val);
+        }
+    };
+
+    // Decompose multiple `eval`s recursively
+    (eval $e:expr, $(eval $es:expr),+) => {{
+        calculate! { eval $e }
+        calculate! { $(eval $es),+ }
+    }};
+}
 
 fn main() {
 	run_server();
