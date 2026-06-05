@@ -11,11 +11,7 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="be1319c8-0367-41a7-bc8e-d7e8ed876809" name="Changes" comment="incomplete ideas, redo, idk &amp; wip">
-      <change afterPath="$PROJECT_DIR$/src/proto/message_a2.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/proto/message_a2/message_a2_collector.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/mod.rs" afterDir="false" />
-    </list>
+    <list default="true" id="be1319c8-0367-41a7-bc8e-d7e8ed876809" name="Changes" comment="ideas, doodling" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -142,7 +138,7 @@
       <workItem from="1774618980768" duration="11763000" />
       <workItem from="1779242032833" duration="141249000" />
       <workItem from="1779677477057" duration="11249000" />
-      <workItem from="1780369237230" duration="3880000" />
+      <workItem from="1780369237230" duration="3897000" />
     </task>
     <task id="LOCAL-00001" summary="begin refactor; reimagine buffer reader">
       <option name="closed" value="true" />
@@ -384,7 +380,15 @@
       <option name="project" value="LOCAL" />
       <updated>1780371843342</updated>
     </task>
-    <option name="localTasksCounter" value="31" />
+    <task id="LOCAL-00031" summary="ideas, doodling">
+      <option name="closed" value="true" />
+      <created>1780373136033</created>
+      <option name="number" value="00031" />
+      <option name="presentableId" value="LOCAL-00031" />
+      <option name="project" value="LOCAL" />
+      <updated>1780373136033</updated>
+    </task>
+    <option name="localTasksCounter" value="32" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -402,7 +406,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="begin refactor; reimagine buffer reader" />
     <MESSAGE value="message common headers wip" />
     <MESSAGE value="testing &amp; debugging" />
     <MESSAGE value="names" />
@@ -427,6 +430,7 @@
     <MESSAGE value="response builder wip" />
     <MESSAGE value="url parts iter update" />
     <MESSAGE value="incomplete ideas, redo, idk &amp; wip" />
-    <option name="LAST_COMMIT_MESSAGE" value="incomplete ideas, redo, idk &amp; wip" />
+    <MESSAGE value="ideas, doodling" />
+    <option name="LAST_COMMIT_MESSAGE" value="ideas, doodling" />
   </component>
 </project>
