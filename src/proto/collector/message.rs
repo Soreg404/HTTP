@@ -120,17 +120,28 @@ impl MessageIncomplete {
         match stage {
             CollectStage::FirstLine => unreachable!(),
             CollectStage::MainHeaders => {
-                let line = match self.buffer_reader.take_line(&self.buffer) {
+                let line_rdx = match buffer_reader.take_line(&buffer) {
                     Poll::Pending => return AdvanceResult::Pending,
                     Poll::Ready(v) => v
                 };
 
-                if line.trim_ascii().is_empty() {
-                    if !line.is_empty() {
+                let line_bytes = line_rdx.get(&buffer);
+                dtrace!("MainHeaders", format!("processing line: {:?}",
+                    String::from_utf8_lossy(line_bytes)));
+
+                if line_bytes.trim_ascii().is_empty() {
+                    if !line_bytes.is_empty() {
                         return AdvanceResult::Finished(Err(
                                 CollectError::TBD("invalid empty header line".to_string())));
                     }
+                    dtrace!("Mainheaders", "empty header line, \
+                        change stage to AfterMainHeaders");
+                    return AdvanceResult::ChangeStage(
+                        CollectStage::AfterMainHeaders);
                 }
+
+                dtrace!("MainHeaders", "continue MainHeaders");
+                AdvanceResult::Continue
             },
             _ => AdvanceResult::Finished(Ok(()))
         }
