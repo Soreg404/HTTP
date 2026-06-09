@@ -2,8 +2,10 @@
 
 *.log
 
-/*.jpg
-/*.png
+*.jpg
+*.png
+
+*.swp
 
 /local/
 /examples/

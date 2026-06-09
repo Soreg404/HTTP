@@ -1,7 +1,14 @@
 use super::glue::*;
 use crate::proto::consts::Version;
 use super::collect_error::CollectError;
-use crate::proto::state_reader::StateReader;
+use crate::proto::state_reader::{ StateReader, Poll };
+
+impl super::RequestCollector {
+    pub fn debug_state(&self) -> String {
+        format!("{:?}", self.msg.state)
+    }
+}
+
 
 #[derive(Default)]
 pub struct Message<T>
@@ -14,14 +21,14 @@ where T: Subtype {
     incomplete: MessageIncomplete
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 enum CollectState {
     #[default]
     Processing,
     Finished(Result<(), CollectError>)
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 enum CollectStage {
     #[default]
     FirstLine,
@@ -33,7 +40,8 @@ enum CollectStage {
 
 #[derive(Default)]
 struct MessageIncomplete {
-    headers: Vec<()>
+    version: Version,
+    headers: Vec<()>,
 }
 
 enum AdvanceResult {
@@ -42,31 +50,38 @@ enum AdvanceResult {
     ChangeStage(CollectStage),
     Finished(Result<(), CollectError>)
 }
-impl MessageIncomplete {
-    fn advance(
-        &mut self,
-        buffer: &[u8],
-        buffer_reader: &mut StateReader,
-        stage: &CollectStage,
-    ) -> AdvanceResult {
-        AdvanceResult::Finished(Ok(()))
-    }
-}
 
 impl<T> Message<T>
-where T: Subtype + Default{
+where T: Subtype + Default {
     pub fn new() -> Self {
         Self {
             ..Default::default()
         }
     }
     pub fn push_bytes(&mut self, bytes: &[u8]) {
+        // temporary
+        self.buffer.extend_from_slice(bytes);
+        ////
         if let CollectStage::FirstLine = self.stage {
-            let mut v = Version::HTTP_1_1;
-            self.specific.first_line(
-                b"GET / HTTP/1.1",
-                &mut v
-            );
+            match self.buffer_reader.take_line(
+                &self.buffer
+            ) {
+                Poll::Pending => return,
+                Poll::Ready(line_rdx) => {
+                    match self.specific.first_line(
+                        line_rdx.get(&self.buffer),
+                        &mut self.incomplete.version 
+                    ) {
+                        Ok(()) => {
+                            self.stage = CollectStage::MainHeaders;
+                        },
+                        Err(e) => {
+                            self.state = CollectState::Finished(Err(e));
+                            return;
+                        }
+                    }
+                }
+            }
         } 
         loop {
             match self.incomplete.advance(
@@ -86,12 +101,38 @@ where T: Subtype + Default{
                 }
             }
         }
-        
     }
     pub fn is_finished(&self) -> bool {
         match self.state {
             CollectState::Processing => false,
             CollectState::Finished(_) => true
+        }
+    }
+}
+
+impl MessageIncomplete {
+    fn advance(
+        &mut self,
+        buffer: &[u8],
+        buffer_reader: &mut StateReader,
+        stage: &CollectStage,
+    ) -> AdvanceResult {
+        match stage {
+            CollectStage::FirstLine => unreachable!(),
+            CollectStage::MainHeaders => {
+                let line = match self.buffer_reader.take_line(&self.buffer) {
+                    Poll::Pending => return AdvanceResult::Pending,
+                    Poll::Ready(v) => v
+                };
+
+                if line.trim_ascii().is_empty() {
+                    if !line.is_empty() {
+                        return AdvanceResult::Finished(Err(
+                                CollectError::TBD("invalid empty header line".to_string())));
+                    }
+                }
+            },
+            _ => AdvanceResult::Finished(Ok(()))
         }
     }
 }

@@ -1,7 +1,8 @@
 use std::fmt::{Debug, Display, Formatter};
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub enum Method {
+    #[default]
 	UNKNOWN,
 	GET,
 	POST,
@@ -38,10 +39,11 @@ impl Display for Method {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Default, Copy, Clone, Eq, PartialEq)]
 pub enum Version {
 	HTTP_0_9,
 	HTTP_1_0,
+    #[default]
 	HTTP_1_1,
 	HTTP_2_0,
 	HTTP_3_0,
