@@ -5,7 +5,8 @@ macro_rules! dtrace {
             format!("\x1b[90m[{}] {}:\x1b[0m", file!(), line!())
         } else { String::new() };
         println!(
-            "{}\
+            "\x1b[36mtrace! \x1b[0m\
+            {}\
             [{}] {}",
             file_info,
             $tag,

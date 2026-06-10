@@ -35,8 +35,19 @@ enum CollectStage {
     FirstLine,
     MainHeaders,
     AfterMainHeaders,
-    MainBody,
-    Attachments
+    MainBody {
+        content_length: usize
+    },
+    Attachments {
+        boundary: Vec<u8>,
+        stage: 
+    }
+}
+
+enum AttachmentCollectStage {
+    Skip,
+    Headers,
+    Content
 }
 
 #[derive(Default)]
@@ -158,6 +169,9 @@ impl MessageIncomplete {
                 dtrace!("MainHeaders", "continue MainHeaders");
                 AdvanceResult::Continue
             },
+            CollectStage::AfterMainHeaders => {
+
+            }
             _ => AdvanceResult::Finished(Ok(()))
         }
     }
