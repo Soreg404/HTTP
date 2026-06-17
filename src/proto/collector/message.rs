@@ -4,14 +4,25 @@ use super::collect_error::CollectError;
 use crate::proto::state_reader::{ StateReader, Poll };
 use crate::proto::header_parser::HeaderBodyParser;
 
+fn strip_crlf(buffer: &[u8]) -> Option<&[u8]> {
+    let s = buffer;
+    let s = match s.last() {
+        Some(b'\n') => &s[..s.len() - 1],
+        _ => return None
+    };
+    let s = match s.last() {
+        Some(b'\r') => &s[..s.len() - 1],
+        _ => s
+    };
+    Some(s)
+}
+
 #[derive(Default)]
-pub struct Message<T>
-where T: Subtype {
+pub struct Message {
     state: CollectState,
     stage: CollectStage,
     buffer: Vec<u8>,
-    buffer_reader: StateReader,
-    specific: T,
+    read_base: usize,
     incomplete: MessageIncomplete
 }
 
@@ -22,126 +33,70 @@ enum CollectState {
     Finished(Result<(), CollectError>)
 }
 
-// tmp Clone, should be Copy but until I deal with that Vec<u8>
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 enum CollectStage {
-    #[default]
-    FirstLine,
+    RequestMethod,
+    RequestTarget,
+    RequestVersion,
+
+    ResponseVersion,
+    ResponseCode,
+    ResponseDesc,
+
     MainHeaders,
     AfterMainHeaders,
-    MainBody {
+    Body {
+        start_index: usize,
         content_length: usize
-    },
-    Attachments {
-        content_length: usize,
-        boundary: Vec<u8>, // temporary - should be Rdx
-        stage: AttachmentCollectStage
     }
 }
 
-#[derive(Debug, Copy, Clone)]
-enum AttachmentCollectStage {
-    Skip,
-    Headers,
-    AfterHeaders,
-    Content
-}
-
-// todo: avoid malloc
 #[derive(Default)]
 struct MessageIncomplete {
     version: Version,
-    headers: Vec<Vec<u8>>,
 
-    h_content_length: Option<usize>,
-    multipart_boundary: Option<Vec<u8>>,
-
-    body: Vec<u8>,
-    attachments: Vec<Attachment>
+    multipart_boundary: Option<Rdx>,
+    content_length: Option<usize>,
 }
 
-// todo: temp, later change to Rdx and avoid malloc
-#[derive(Default)]
-struct Attachment {
-    disp_name: Option<Vec<u8>>,
-    disp_filename: Option<Vec<u8>>,
-    content: Vec<u8>
-}
-
-enum AdvanceResult {
-    Pending,
-    Continue,
-    ChangeStage(CollectStage),
-    Finished(Result<(), CollectError>)
-}
-
-impl<T> Message<T>
-where T: Subtype + Default {
-    pub fn new() -> Self {
+impl Message {
+    pub fn new_request() -> Self {
         Self {
+            collect_stage: 
             ..Default::default()
         }
     }
-    pub fn push_bytes(&mut self, bytes: &[u8]) {
+    pub fn new_response() -> Self {
+        Self {
+            collect_stage: 
+            ..Default::default()
+        }
+    }
+    pub fn push_bytes(&mut self, bytes: &[u8]) -> usize {
         macro_rules! dtrace1 { ($msg:expr) => {
             dtrace!("push_bytes()", $msg); 
         } }
         dtrace1!("begin");
 
-        // temporary
-        self.buffer.extend_from_slice(bytes);
-        ////
+        let mut bytes_i = 0;
+        while bytes_i < bytes.len() {
+            // todo: match CollectStage::Body and check if length is ok
+            // return err if not
+            self.buffer.push(bytes[i]);
 
-        if let CollectStage::FirstLine = self.stage {
-            dtrace1!("collect FirstLine");
-            match self.buffer_reader.take_line(
-                &self.buffer
-            ) {
-                Poll::Pending => {
-                    dtrace1!("FirstLine pending");
-                    return
-                }
-                Poll::Ready(line_rdx) => {
-                    match self.specific.first_line(
-                        line_rdx.get(&self.buffer),
-                        &mut self.incomplete.version 
-                    ) {
-                        Ok(()) => {
-                            self.stage = CollectStage::MainHeaders;
-                        },
-                        Err(e) => {
-                            self.state = CollectState::Finished(Err(e));
-                            return;
-                        }
-                    }
-                }
+            self.advance3();
+
+            if self.is_finished() {
+                break
             }
-        } 
-        loop {
-            dtrace1!("loop advance");
-            match self.incomplete.advance(
-                &self.buffer,
-                &mut self.buffer_reader,
-                self.stage.clone()
-            ) {
-                AdvanceResult::Pending => {
-                    dtrace1!("Pending");
-                    break
-                }
-                AdvanceResult::Continue => {
-                    dtrace1!("Continue");
-                    continue
-                }
-                AdvanceResult::ChangeStage(s) => {
-                    dtrace1!(format!("StateChange: {:?}", s));
-                    self.stage = s;
-                    continue;
-                }
-                AdvanceResult::Finished(r) => {
-                    dtrace1!(format!("Finished: {:?}", r));
-                    self.state = CollectState::Finished(r);
-                    break;
-                }
+        }
+        
+        bytes_i
+    }
+    fn advance3(&mut self) {
+        let s = &self.buffer[self.read_base..];
+        match self.stage {
+            CollectStage::RequestMethod => {
             }
         }
     }
@@ -154,6 +109,7 @@ where T: Subtype + Default {
 }
 
 impl MessageIncomplete {
+    
     fn advance(
         &mut self,
         buffer: &[u8],
