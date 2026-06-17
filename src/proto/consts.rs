@@ -26,7 +26,7 @@ impl Method {
 
 impl Display for Method {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		use Method::*;
+		use self::Method::*;
 		match self {
 			GET => write!(f, "GET"),
 			POST => write!(f, "POST"),
@@ -89,7 +89,7 @@ pub enum StatusCode {
 
 impl StatusCode {
 	pub fn as_desc(&self) -> &'static [u8] {
-		use StatusCode::*;
+		use self::StatusCode::*;
 		match self {
 			SUCCESS => b"OK",
 			NOT_FOUND => b"NOT FOUND",

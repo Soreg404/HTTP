@@ -29,7 +29,8 @@ enum CollectState {
     Finished(Result<(), CollectError>)
 }
 
-#[derive(Default, Debug)]
+// tmp Clone, should be Copy but until I deal with that Vec<u8>
+#[derive(Default, Debug, Clone)]
 enum CollectStage {
     #[default]
     FirstLine,
@@ -39,14 +40,17 @@ enum CollectStage {
         content_length: usize
     },
     Attachments {
-        boundary: Vec<u8>,
-        stage: 
+        content_length: usize,
+        boundary: Vec<u8>, // temporary - should be Rdx
+        stage: AttachmentCollectStage
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 enum AttachmentCollectStage {
     Skip,
     Headers,
+    AfterHeaders,
     Content
 }
 
@@ -56,7 +60,18 @@ struct MessageIncomplete {
     headers: Vec<Vec<u8>>,
 
     h_content_length: Option<usize>,
-    multipart_boundary: Option<Vec<u8>>
+    multipart_boundary: Option<Vec<u8>>,
+
+    body: Vec<u8>,
+    attachments: Vec<Attachment>
+}
+
+// todo: temp, later change to Rdx and avoid malloc
+#[derive(Default)]
+struct Attachment {
+    disp_name: Option<Vec<u8>>,
+    disp_filename: Option<Vec<u8>>,
+    content: Vec<u8>
 }
 
 enum AdvanceResult {
@@ -74,14 +89,23 @@ where T: Subtype + Default {
         }
     }
     pub fn push_bytes(&mut self, bytes: &[u8]) {
+            macro_rules! dtrace1 { ($msg:expr) => {
+                dtrace!("push_bytes()", $msg); 
+            } }
+        dtrace1!("begin");
+
         // temporary
         self.buffer.extend_from_slice(bytes);
         ////
         if let CollectStage::FirstLine = self.stage {
+            dtrace1!("collect FirstLine");
             match self.buffer_reader.take_line(
                 &self.buffer
             ) {
-                Poll::Pending => return,
+                Poll::Pending => {
+                    dtrace1!("FirstLine pending");
+                    return
+                }
                 Poll::Ready(line_rdx) => {
                     match self.specific.first_line(
                         line_rdx.get(&self.buffer),
@@ -99,18 +123,27 @@ where T: Subtype + Default {
             }
         } 
         loop {
+            dtrace1!("loop advance");
             match self.incomplete.advance(
                 &self.buffer,
                 &mut self.buffer_reader,
-                &self.stage
+                self.stage.clone()
             ) {
-                AdvanceResult::Pending => break,
-                AdvanceResult::Continue => continue,
+                AdvanceResult::Pending => {
+                    dtrace1!("Pending");
+                    break
+                }
+                AdvanceResult::Continue => {
+                    dtrace1!("Continue");
+                    continue
+                }
                 AdvanceResult::ChangeStage(s) => {
+                    dtrace1!(format!("StateChange: {:?}", s));
                     self.stage = s;
                     continue;
                 }
                 AdvanceResult::Finished(r) => {
+                    dtrace1!(format!("Finished: {:?}", r));
                     self.state = CollectState::Finished(r);
                     break;
                 }
@@ -130,12 +163,12 @@ impl MessageIncomplete {
         &mut self,
         buffer: &[u8],
         buffer_reader: &mut StateReader,
-        stage: &CollectStage,
+        stage: CollectStage,
     ) -> AdvanceResult {
         match stage {
             CollectStage::FirstLine => unreachable!(),
             CollectStage::MainHeaders => {
-                let line_rdx = match buffer_reader.take_line(&buffer) {
+                let line_rdx = match buffer_reader.take_line(buffer) {
                     Poll::Pending => return AdvanceResult::Pending,
                     Poll::Ready(v) => v
                 };
@@ -170,9 +203,133 @@ impl MessageIncomplete {
                 AdvanceResult::Continue
             },
             CollectStage::AfterMainHeaders => {
-
+                dtrace!("AfterMainHeaders", "begin");
+                match self.h_content_length {
+                    None => AdvanceResult::Finished(Ok(())),
+                    Some(l) => {
+                        AdvanceResult::ChangeStage(
+                            match &self.multipart_boundary {
+                                None => CollectStage::MainBody {
+                                    content_length: l
+                                },
+                                Some(b) => CollectStage::Attachments {
+                                    content_length: l,
+                                    boundary: b.to_vec(), // todo: should be Rdx
+                                    stage: AttachmentCollectStage::Skip
+                                }
+                            }
+                        )
+                    }
+                }
             }
-            _ => AdvanceResult::Finished(Ok(()))
+            CollectStage::MainBody { content_length } => {
+                match buffer_reader.take_exact(buffer, content_length) {
+                    Poll::Pending => return AdvanceResult::Pending,
+                    Poll::Ready(rdx) => {
+                        // todo: avoid malloc
+                        self.body = rdx.get(buffer).to_vec();
+                        AdvanceResult::Finished(Ok(()))
+                    }
+                }
+            }
+            CollectStage::Attachments {
+                content_length,
+                boundary,
+                stage
+            } => match stage {
+                AttachmentCollectStage::Skip => {
+                    dtrace!("Attachment->Skip", "begin");
+                    match buffer_reader.take_attachment(buffer, &boundary) {
+                        Poll::Pending => AdvanceResult::Pending,
+                        Poll::Ready(boundary_info) => {
+                            if boundary_info.is_last {
+                                AdvanceResult::Finished(Ok(()))
+                            } else {
+                                self.attachments.push(Attachment::default());
+                                AdvanceResult::ChangeStage(
+                                    CollectStage::Attachments {
+                                        content_length,
+                                        boundary,
+                                        stage: AttachmentCollectStage::Headers
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                AttachmentCollectStage::Headers => {
+                    macro_rules! dtrace1 { ($msg:expr) => {
+                        dtrace!("Attachment->Headers", $msg)
+                    } }
+                    let line_rdx = match buffer_reader.take_line(buffer) {
+                        Poll::Pending => return AdvanceResult::Pending,
+                        Poll::Ready(v) => v
+                    };
+
+                    let line_bytes = line_rdx.get(&buffer);
+                    dtrace1!(format!("processing line: {:?}",
+                            String::from_utf8_lossy(line_bytes)));
+
+                    // todo: safety checks on line length and allowed characters
+
+                    if line_bytes.trim_ascii().is_empty() {
+                        if !line_bytes.is_empty() {
+                            return AdvanceResult::Finished(Err(
+                                    CollectError::TBD("invalid empty header line".to_string())));
+                        }
+                        dtrace1!("empty header line, \
+                            change stage to AfterHeaders");
+                        return AdvanceResult::ChangeStage(
+                            CollectStage::Attachments {
+                                content_length,
+                                boundary,
+                                stage: AttachmentCollectStage::AfterHeaders
+                            });
+                    }
+
+                    AdvanceResult::Continue
+                }
+                AttachmentCollectStage::AfterHeaders => {
+                    dtrace!("Attachment->AfterHeaders", "begin");
+                    if self.attachments.last().unwrap().disp_name.is_none() {
+                        AdvanceResult::Finished(Err(CollectError::TBD(
+                                    "attachment missing name".to_string())))
+                    } else {
+                        AdvanceResult::ChangeStage(
+                            CollectStage::Attachments {
+                                content_length,
+                                boundary,
+                                stage: AttachmentCollectStage::Content
+                            }
+                        )
+                    }
+                }
+                AttachmentCollectStage::Content => {
+                    dtrace!("Attachment->Content", "begin");
+                    match buffer_reader.take_attachment(buffer, &boundary) {
+                        Poll::Pending => AdvanceResult::Pending,
+                        Poll::Ready(boundary_info) => {
+                            if boundary_info.is_last {
+                                AdvanceResult::Finished(Ok(()))
+                            } else {
+                                self.attachments.last_mut().unwrap()
+                                    .content = boundary_info.content.get(buffer)
+                                    // todo: temporary, avoid malloc
+                                    .to_vec();
+                                AdvanceResult::ChangeStage(
+                                    CollectStage::Attachments {
+                                        content_length,
+                                        boundary,
+                                        stage: AttachmentCollectStage::Headers
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            s => AdvanceResult::Finished(Err(CollectError::TBD(format!(
+                            "unimplemented: {s:?}"))))
         }
     }
     fn process_main_header_line(
@@ -241,6 +398,35 @@ impl MessageIncomplete {
                 // todo: avoid malloc
                 self.multipart_boundary = Some(boundary.to_vec());
             }
+        }
+
+        Ok(())
+    }
+    fn process_attachment_header_line(
+        &mut self,
+        line_bytes: &[u8]
+    ) -> Result<(), CollectError> {
+        macro_rules! dtrace1 { ($msg:expr) => {
+            dtrace!("AttachmentHeaders->process_line()", $msg) }}
+        dtrace1!("begin");
+
+        let header_rdx = match crate::proto::header_parser::header_from_line(line_bytes) {
+            Ok(v) => v,
+            Err(()) => return Err(CollectError::TBD("invalid header, \
+                    failed to get header_from_line".to_string()))
+        };
+        let header_name_bytes = header_rdx.name.get(line_bytes);
+        let header_body_bytes = header_rdx.body.get(line_bytes);
+        dtrace1!(format!("got header {:?}:{:?}",
+                String::from_utf8_lossy(header_name_bytes),
+                String::from_utf8_lossy(header_body_bytes)));
+
+        let current_attachment = self.attachments.last_mut().unwrap();
+
+        if header_name_bytes.eq_ignore_ascii_case(b"content-disposition") {
+            let name = &mut current_attachment.disp_name;
+            let filename = &mut current_attachment.disp_filename;
+            *name = Some(b"abc".to_vec());
         }
 
         Ok(())

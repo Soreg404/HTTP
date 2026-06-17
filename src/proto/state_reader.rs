@@ -34,62 +34,64 @@ impl StateReader {
 		Poll::Pending
 	}
 
-	pub fn take_attachment(&mut self, buffer: &[u8], boundary: &[u8])
-						   -> Poll<BoundaryInfo> {
-		while self.head < buffer.len() {
-			let mut idx = self.head;
-			self.head += 1;
-			let mut is_last = false;
-			if buffer[idx] != b'\n' {
-				continue;
-			}
-			if idx == 0 {
-				continue
-			}
-			idx -= 1;
-			if buffer[idx] == b'\r' {
-				if idx == 0 {
-					continue
-				}
-				idx -= 1;
-			}
-			if idx > 1 && buffer[idx] == b'-' && buffer[idx - 1] == b'-' {
-				is_last = true;
-				idx -= 2;
-			}
-			if idx + 1 < boundary.len() + 2 {
-				continue;
-			}
-			idx = idx + 1 - boundary.len() - 2;
+    pub fn take_exact(&mut self, buffer: &[u8], length: usize) -> Poll<Rdx> {
+        if self.base + length < buffer.len() {
+            self.head = buffer.len();
+            Poll::Pending
+        } else {
+            self.head += length;
+            let tmp_base = self.base;
+            self.base = self.head;
+            Poll::Ready(Rdx::new(tmp_base, self.head))
+        }
+    }
 
-			if &buffer[idx + 2..idx + 2 + boundary.len()] != boundary {
-				continue;
-			}
-			if &buffer[idx..idx + 2] != b"--" {
-				continue;
-			}
+    pub fn take_attachment(&mut self, buffer: &[u8], boundary: &[u8])
+        -> Poll<BoundaryInfo> {
+            let mut is_last = false;
+            while self.head < buffer.len() {
+                self.head += 1;
+                let s = &buffer[self.base..self.head];
 
-			if idx == 0 || buffer[idx - 1] != b'\n' {
-				continue;
-			}
-			idx -= 1;
-			if idx > 0 && buffer[idx - 1] == b'\r' {
-				idx -= 1;
-			}
+                let s = match s.strip_suffix(b"\n") {
+                    None => continue,
+                    Some(v) => v
+                };
+                let s = s.strip_suffix(b"\r").unwrap_or(s);
+                let s = match s.strip_suffix(b"--") {
+                    None => s,
+                    Some(v) => {
+                        is_last = true;
+                        v
+                    }
+                };
+                let s = match s.strip_suffix(boundary) {
+                    None => continue,
+                    Some(v) => v
+                };
+                let s = match s.strip_suffix(b"--") {
+                    None => continue,
+                    Some(v) => v
+                };
+                let s = match s.strip_suffix(b"\n") {
+                    None => s,
+                    Some(s) => s.strip_suffix(b"\r").unwrap_or(s)
+                };
 
-			let tmp_base = self.base;
-			self.base = self.head;
-			return Poll::Ready(BoundaryInfo {
-				data: Rdx::new(tmp_base, idx),
-				is_last,
-			});
-		}
+                let tmp_base = self.base;
+                self.base = self.head;
+                return Poll::Ready(BoundaryInfo {
+                    content: Rdx::new(tmp_base, tmp_base + s.len()),
+                    is_last,
+                });
+
+            }
 		Poll::Pending
 	}
 }
 
 pub struct BoundaryInfo {
-	pub data: Rdx,
+	pub content: Rdx,
 	pub is_last: bool,
 }
 
@@ -112,14 +114,16 @@ fn take_attachment() {
 	match r.take_attachment(sample, b"abc") {
 		Poll::Pending => panic!(),
 		Poll::Ready(bi) => {
-			assert_eq!(bi.data.get(sample), b"somedata");
+			assert_eq!(bi.content.get(sample), b"somedata");
 			assert_eq!(bi.is_last, false);
 		}
 	};
+    assert_eq!(r.base, 17);
+    assert_eq!(r.head, r.base);
 	match r.take_attachment(sample, b"abc") {
 		Poll::Pending => panic!(),
 		Poll::Ready(bi) => {
-			assert_eq!(bi.data.get(sample), b"anotherdata");
+			assert_eq!(bi.content.get(sample), b"anotherdata");
 			assert_eq!(bi.is_last, true);
 		}
 	};

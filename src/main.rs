@@ -19,7 +19,6 @@ fn main() {
         GET / HTTP/1.1\r\n\
         header1: value1\r\n\
         \r\n");
-    println!("rc.debug_state(): {}", rc.debug_state());
 
     ex_trailer!("sample multipart");
     let mut rc = http::RequestCollector::new();
@@ -35,6 +34,5 @@ fn main() {
         hello world!
         --ABC--\r\n\
         ");
-    println!("rc.debug_state(): {}", rc.debug_state());
 }
 
