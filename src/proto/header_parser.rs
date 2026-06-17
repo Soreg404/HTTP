@@ -7,53 +7,53 @@ pub struct HeaderRdx {
 
 
 pub fn header_from_line(line: &[u8])
-						-> Result<HeaderRdx, ()> {
-	if line.is_empty() {
-		return Err(());
-	}
-	let line = line.strip_suffix(b"\n")
-		.unwrap_or(line);
-	let line = line.strip_suffix(b"\r")
-		.unwrap_or(line);
+    -> Result<HeaderRdx, ()> {
+        if line.is_empty() {
+            return Err(());
+        }
+        let line = line.strip_suffix(b"\n")
+            .unwrap_or(line);
+        let line = line.strip_suffix(b"\r")
+            .unwrap_or(line);
 
 
-	let mut i = 0;
-	let mut name_end = 0;
-	while i < line.len() {
-		if !line[i].is_ascii_graphic() {
-			return Err(());
-		} else if line[i] == b':' {
-			name_end = i;
-			i += 1;
-			break;
-		}
-		i += 1;
-	}
+        let mut i = 0;
+        let mut name_end = 0;
+        while i < line.len() {
+            if !line[i].is_ascii_graphic() {
+                return Err(());
+            } else if line[i] == b':' {
+                name_end = i;
+                i += 1;
+                break;
+            }
+            i += 1;
+        }
 
-	while i < line.len() {
-		if !line[i].is_ascii_whitespace() {
-			break;
-		}
-		i += 1;
-	}
-	let body_start = i;
+        while i < line.len() {
+            if !line[i].is_ascii_whitespace() {
+                break;
+            }
+            i += 1;
+        }
+        let body_start = i;
 
-	let mut body_end = line.len();
-	while body_end > body_start {
-		if !line[body_end - 1].is_ascii_whitespace() {
-			break;
-		}
-		body_end -= 1;
-	}
-	if body_start == body_end {
-		return Err(());
-	}
+        let mut body_end = line.len();
+        while body_end > body_start {
+            if !line[body_end - 1].is_ascii_whitespace() {
+                break;
+            }
+            body_end -= 1;
+        }
+        if body_start == body_end {
+            return Err(());
+        }
 
-	Ok(HeaderRdx {
-		name: Rdx::new(0, name_end),
-		body: Rdx::new(body_start, body_end),
-	})
-}
+        Ok(HeaderRdx {
+            name: Rdx::new(0, name_end),
+            body: Rdx::new(body_start, body_end),
+        })
+    }
 
 pub struct HeaderBodyParser<'a> {
 	target_bytes: &'a [u8],

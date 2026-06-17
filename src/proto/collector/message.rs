@@ -4,13 +4,6 @@ use super::collect_error::CollectError;
 use crate::proto::state_reader::{ StateReader, Poll };
 use crate::proto::header_parser::HeaderBodyParser;
 
-impl super::RequestCollector {
-    pub fn debug_state(&self) -> String {
-        format!("{:?}", self.msg.state)
-    }
-}
-
-
 #[derive(Default)]
 pub struct Message<T>
 where T: Subtype {
@@ -54,6 +47,7 @@ enum AttachmentCollectStage {
     Content
 }
 
+// todo: avoid malloc
 #[derive(Default)]
 struct MessageIncomplete {
     version: Version,
@@ -89,14 +83,15 @@ where T: Subtype + Default {
         }
     }
     pub fn push_bytes(&mut self, bytes: &[u8]) {
-            macro_rules! dtrace1 { ($msg:expr) => {
-                dtrace!("push_bytes()", $msg); 
-            } }
+        macro_rules! dtrace1 { ($msg:expr) => {
+            dtrace!("push_bytes()", $msg); 
+        } }
         dtrace1!("begin");
 
         // temporary
         self.buffer.extend_from_slice(bytes);
         ////
+
         if let CollectStage::FirstLine = self.stage {
             dtrace1!("collect FirstLine");
             match self.buffer_reader.take_line(
