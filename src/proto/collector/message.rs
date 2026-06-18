@@ -1,29 +1,21 @@
 use super::glue::*;
-use crate::proto::consts::Version;
+use crate::proto::consts::*;
 use super::collect_error::CollectError;
-use crate::proto::state_reader::{ StateReader, Poll };
+use crate::proto::state_reader::StateReader;
 use crate::proto::header_parser::HeaderBodyParser;
-
-fn strip_crlf(buffer: &[u8]) -> Option<&[u8]> {
-    let s = buffer;
-    let s = match s.last() {
-        Some(b'\n') => &s[..s.len() - 1],
-        _ => return None
-    };
-    let s = match s.last() {
-        Some(b'\r') => &s[..s.len() - 1],
-        _ => s
-    };
-    Some(s)
-}
+use super::parser;
+use index_slice::IndexSlice;
 
 #[derive(Default)]
 pub struct Message {
     state: CollectState,
     stage: CollectStage,
     buffer: Vec<u8>,
-    read_base: usize,
-    incomplete: MessageIncomplete
+    buffer_reader: StateReader,
+
+    i_request: Option<IncompleteRequest>,
+    i_response: Option<IncompleteResponse>,
+    i_msg: IncompleteMessage
 }
 
 #[derive(Default, Debug)]
@@ -35,27 +27,33 @@ enum CollectState {
 
 #[derive(Debug, Clone)]
 enum CollectStage {
-    RequestMethod,
-    RequestTarget,
-    RequestVersion,
+    RequestFirstLine,
+    ResponseFirstLine,
 
-    ResponseVersion,
-    ResponseCode,
-    ResponseDesc,
-
-    MainHeaders,
-    AfterMainHeaders,
+    Headers,
     Body {
+        content_length: usize,
         start_index: usize,
-        content_length: usize
     }
 }
 
 #[derive(Default)]
-struct MessageIncomplete {
+struct IncompleteRequest {
+    method: Option<Method>,
+    target: Option<Vec<u8>>,
+}
+#[derive(Default)]
+struct IncompleteResponse {
+    code: Option<StatusCode>,
+    desc: IndexSlice
+}
+#[derive(Default)]
+struct IncompleteMessage {
     version: Version,
 
-    multipart_boundary: Option<Rdx>,
+    headers: Vec<IndexSlice>,
+
+    multipart_boundary: Option<IndexSlice>,
     content_length: Option<usize>,
 }
 
@@ -78,27 +76,81 @@ impl Message {
         } }
         dtrace1!("begin");
 
-        let mut bytes_i = 0;
-        while bytes_i < bytes.len() {
-            // todo: match CollectStage::Body and check if length is ok
-            // return err if not
-            self.buffer.push(bytes[i]);
+        let start_head = self.buffer_reader.head;
 
-            self.advance3();
+        // todo: match CollectStage::Body and check if length is ok
+        // return err if not
+        self.buffer.extend_form_slice(bytes);
 
-            if self.is_finished() {
-                break
-            }
-        }
-        
-        bytes_i
+        self.advance3();
+
+        start_head - self.buffer_reader.head
     }
     fn advance3(&mut self) {
-        let s = &self.buffer[self.read_base..];
-        match self.stage {
-            CollectStage::RequestMethod => {
+        loop {
+            match self.stage {
+                CollectStage::RequestFirstLine => {
+                    match self.buffer_reader.take_line(&self.buffer) {
+                        None => return,
+                        Some(line_rdx) => {
+                            let line = line_rdx.get(&self.buffer);
+                            match parser::first_line_request() {
+                                Err(e) => { 
+                                    self.raise_error(e);
+                                    return;
+                                }
+                                Some(v) => {
+                                    self.i_request.method = Some(v.method);
+                                    self.i_request.target = Some(v.target);
+
+                                    self.i_message.version = Some(v.version);
+
+                                    self.stage = CollectStage::MainHeaders;
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
+                CollectStage::Headers => {
+                    let (line, line_rdx) = match self.buffer_reader(&self.buffer) {
+                        None => return,
+                        Some(v) => (v.get(&self.buffer), v)
+                    };
+
+                    if line.trim_ascii().is_empty() {
+                        if !line.is_empty() {
+                            self.raise_error(
+                                CollectError::TBD(
+                                    "invalid header line: empty header line has whitespace"
+                                    .to_string()
+                                )
+                            );
+                            return;
+                        }
+
+                        match self.i_message.content_length {
+                            None => {
+                                self.state = CollectState::Finished(Ok(()));
+                                return;
+                            }
+                            Some(content_length) => {
+                                self.stage = CollectStage::Body {
+                                    content_length,
+                                    start_index: self.buffer_reader.base
+                                };
+                                continue;
+                            }
+                        }
+                    }
+
+
+                }
             }
         }
+    }
+    fn raise_error(&mut self, e: CollectError) {
+        self.state = CollectState::Finished(Err(e));
     }
     pub fn is_finished(&self) -> bool {
         match self.state {
@@ -108,14 +160,14 @@ impl Message {
     }
 }
 
-impl MessageIncomplete {
+impl IncompleteMessage {
     
     fn advance(
         &mut self,
         buffer: &[u8],
         buffer_reader: &mut StateReader,
         stage: CollectStage,
-    ) -> AdvanceResult {
+    )  {
         match stage {
             CollectStage::FirstLine => unreachable!(),
             CollectStage::MainHeaders => {

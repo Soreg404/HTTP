@@ -6,14 +6,8 @@ pub struct StateReader {
 	pub head: usize,
 }
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum Poll<T> {
-	Ready(T),
-	Pending,
-}
-
 impl StateReader {
-	pub fn take_line(&mut self, buffer: &[u8]) -> Poll<Rdx> {
+	pub fn take_line(&mut self, buffer: &[u8]) -> Option<Rdx> {
 		while self.head < buffer.len() {
 			if buffer[self.head] == b'\n' {
 				let to;
@@ -26,28 +20,28 @@ impl StateReader {
 
 				self.head += 1;
 				self.base = self.head;
-				return Poll::Ready(Rdx::new(from, to));
+				return Some(Rdx::new(from, to));
 			}
 			self.head += 1;
 		}
 
-		Poll::Pending
+        None
 	}
 
-    pub fn take_exact(&mut self, buffer: &[u8], length: usize) -> Poll<Rdx> {
+    pub fn take_exact(&mut self, buffer: &[u8], length: usize) -> Option<Rdx> {
         if self.base + length < buffer.len() {
             self.head = buffer.len();
-            Poll::Pending
+            None
         } else {
             self.head += length;
             let tmp_base = self.base;
             self.base = self.head;
-            Poll::Ready(Rdx::new(tmp_base, self.head))
+            Some(Rdx::new(tmp_base, self.head))
         }
     }
 
     pub fn take_attachment(&mut self, buffer: &[u8], boundary: &[u8])
-        -> Poll<BoundaryInfo> {
+        -> Option<BoundaryInfo> {
             let mut is_last = false;
             while self.head < buffer.len() {
                 self.head += 1;
@@ -80,13 +74,13 @@ impl StateReader {
 
                 let tmp_base = self.base;
                 self.base = self.head;
-                return Poll::Ready(BoundaryInfo {
+                return Some(BoundaryInfo {
                     content: Rdx::new(tmp_base, tmp_base + s.len()),
                     is_last,
                 });
 
             }
-		Poll::Pending
+            None
 	}
 }
 
@@ -100,10 +94,10 @@ pub struct BoundaryInfo {
 fn simple_take_line() {
 	let sample = b"line 1\r\nline 2\nline 3\r\nincomplete";
 	let mut r = StateReader::default();
-	assert_eq!(r.take_line(sample), Poll::Ready(Rdx::new(0, 6)));
-	assert_eq!(r.take_line(sample), Poll::Ready(Rdx::new(8, 14)));
-	assert_eq!(r.take_line(sample), Poll::Ready(Rdx::new(15, 21)));
-	assert_eq!(r.take_line(sample), Poll::Pending);
+	assert_eq!(r.take_line(sample), Some(Rdx::new(0, 6)));
+	assert_eq!(r.take_line(sample), Some(Rdx::new(8, 14)));
+	assert_eq!(r.take_line(sample), Some(Rdx::new(15, 21)));
+	assert_eq!(r.take_line(sample), None);
 }
 
 
@@ -112,8 +106,8 @@ fn take_attachment() {
 	let sample = b"somedata\r\n--abc\r\nanotherdata\r\n--abc--\r\n";
 	let mut r = StateReader::default();
 	match r.take_attachment(sample, b"abc") {
-		Poll::Pending => panic!(),
-		Poll::Ready(bi) => {
+		None => panic!(),
+		Some(bi) => {
 			assert_eq!(bi.content.get(sample), b"somedata");
 			assert_eq!(bi.is_last, false);
 		}
@@ -121,8 +115,8 @@ fn take_attachment() {
     assert_eq!(r.base, 17);
     assert_eq!(r.head, r.base);
 	match r.take_attachment(sample, b"abc") {
-		Poll::Pending => panic!(),
-		Poll::Ready(bi) => {
+		None => panic!(),
+		Some(bi) => {
 			assert_eq!(bi.content.get(sample), b"anotherdata");
 			assert_eq!(bi.is_last, true);
 		}
