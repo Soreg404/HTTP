@@ -1,8 +1,8 @@
-use crate::proto::rdx::Rdx;
+use index_slice::IndexSlice;
 
 pub struct HeaderRdx {
-	pub name: Rdx,
-	pub body: Rdx,
+	pub name: IndexSlice,
+	pub body: IndexSlice,
 }
 
 
@@ -50,8 +50,8 @@ pub fn header_from_line(line: &[u8])
         }
 
         Ok(HeaderRdx {
-            name: Rdx::new(0, name_end),
-            body: Rdx::new(body_start, body_end),
+            name: IndexSlice::new(0, name_end),
+            body: IndexSlice::new(body_start, body_end),
         })
     }
 
@@ -68,7 +68,7 @@ impl<'a> HeaderBodyParser<'a> {
 		}
 	}
 
-	pub fn next_atom(&mut self) -> Option<Rdx> {
+	pub fn next_atom(&mut self) -> Option<IndexSlice> {
 		let word_start = self.head;
 		let mut word_end = self.target_bytes.len();
 		while self.head < self.target_bytes.len() {
@@ -85,7 +85,7 @@ impl<'a> HeaderBodyParser<'a> {
 		if word_start == word_end {
 			None
 		} else {
-			Some(Rdx::new(word_start, word_end))
+			Some(IndexSlice::new(word_start, word_end))
 		}
 	}
 
@@ -93,7 +93,7 @@ impl<'a> HeaderBodyParser<'a> {
 		match self.next_atom() {
 			None => Err(()),
 			Some(w) => {
-				let ws = w.get(self.target_bytes);
+				let ws = w.as_slice_of(self.target_bytes);
 				let mut i = 0;
 				let mut part = true;
 				let mut slash_pos = 0;
@@ -111,8 +111,8 @@ impl<'a> HeaderBodyParser<'a> {
 					return Err(());
 				}
 				Ok(TypeRdx {
-					main: Rdx::new(0, slash_pos).offset(w.from()),
-					sub: Rdx::new(slash_pos + 1, w.len()).offset(w.from()),
+					main: IndexSlice::new(0, slash_pos).offset_forward(w.from()),
+					sub: IndexSlice::new(slash_pos + 1, w.len()).offset_forward(w.from()),
 				})
 			}
 		}
@@ -150,7 +150,7 @@ impl<'a> HeaderBodyParser<'a> {
 			return Some(Err(()));
 		}
 
-		let key = Rdx::new(key_start, key_end.unwrap());
+		let key = IndexSlice::new(key_start, key_end.unwrap());
 
 		if self.target_bytes[self.head] != b'=' {
 			return Some(Err(()));
@@ -170,7 +170,7 @@ impl<'a> HeaderBodyParser<'a> {
 		}))
 	}
 
-	fn next_word(&mut self) -> Result<Option<Rdx>, ()> {
+	fn next_word(&mut self) -> Result<Option<IndexSlice>, ()> {
 		if self.target_bytes[self.head] == b'"' {
 			self.head += 1;
 			let quot_start = self.head;
@@ -179,7 +179,7 @@ impl<'a> HeaderBodyParser<'a> {
 					let quot_end = self.head;
 					self.head += 1;
 					self.skip_ws();
-					return Ok(Some(Rdx::new(quot_start, quot_end)));
+					return Ok(Some(IndexSlice::new(quot_start, quot_end)));
 				}
 				self.head += 1;
 			}
@@ -208,27 +208,27 @@ impl<'a> HeaderBodyParser<'a> {
 }
 
 pub struct TypeRdx {
-	pub main: Rdx,
-	pub sub: Rdx,
+	pub main: IndexSlice,
+	pub sub: IndexSlice,
 }
 
 pub struct AttributeRdx {
-	pub key: Rdx,
-	pub value: Rdx,
+	pub key: IndexSlice,
+	pub value: IndexSlice,
 }
 
 #[test]
 fn header_parser_new() {
 	let line = b"host:     localhost    ";
 	let h = header_from_line(line).unwrap();
-	assert_eq!(h.name.get(line), b"host");
-	assert_eq!(h.body.get(line), b"localhost");
-	let field_body_bytes = h.body.get(line);
+	assert_eq!(h.name.as_slice_of(line), b"host");
+	assert_eq!(h.body.as_slice_of(line), b"localhost");
+	let field_body_bytes = h.body.as_slice_of(line);
 	let mut hp = HeaderBodyParser::new(field_body_bytes);
 	match hp.next_atom() {
 		None => panic!(),
 		Some(rdx) => {
-			assert_eq!(rdx.get(field_body_bytes), b"localhost");
+			assert_eq!(rdx.as_slice_of(field_body_bytes), b"localhost");
 		}
 	}
 }
@@ -237,49 +237,49 @@ fn header_parser_new() {
 fn header_parser_atoms() {
 	let line = b"content-type:   application/rust     text/plain  random/bullshit   ";
 	let h = header_from_line(line).unwrap();
-	assert_eq!(h.name.get(line), b"content-type");
-	assert_eq!(h.body.get(line),
+	assert_eq!(h.name.as_slice_of(line), b"content-type");
+	assert_eq!(h.body.as_slice_of(line),
 			   b"application/rust     text/plain  random/bullshit");
-	let field_body_bytes = h.body.get(line);
+	let field_body_bytes = h.body.as_slice_of(line);
 	let mut hbp = HeaderBodyParser::new(field_body_bytes);
 		let ct = hbp.next_type().unwrap();
-		assert_eq!(ct.main.get(field_body_bytes), b"application");
-		assert_eq!(ct.sub.get(field_body_bytes), b"rust");
+		assert_eq!(ct.main.as_slice_of(field_body_bytes), b"application");
+		assert_eq!(ct.sub.as_slice_of(field_body_bytes), b"rust");
 
 		let ct = hbp.next_type().unwrap();
-		assert_eq!(ct.main.get(field_body_bytes), b"text");
-		assert_eq!(ct.sub.get(field_body_bytes), b"plain");
+		assert_eq!(ct.main.as_slice_of(field_body_bytes), b"text");
+		assert_eq!(ct.sub.as_slice_of(field_body_bytes), b"plain");
 
 		let ct = hbp.next_type().unwrap();
-		assert_eq!(ct.main.get(field_body_bytes), b"random");
-		assert_eq!(ct.sub.get(field_body_bytes), b"bullshit");
+		assert_eq!(ct.main.as_slice_of(field_body_bytes), b"random");
+		assert_eq!(ct.sub.as_slice_of(field_body_bytes), b"bullshit");
 }
 
 #[test]
 fn next_word() {
 	let line = b"header: atom \"quoted text\"";
 	let h = header_from_line(line).unwrap();
-	let field_body_bytes = h.body.get(line);
+	let field_body_bytes = h.body.as_slice_of(line);
 	let mut hbp = HeaderBodyParser::new(field_body_bytes);
-	assert_eq!(hbp.next_word().unwrap().unwrap().get(field_body_bytes), b"atom");
-	assert_eq!(hbp.next_word().unwrap().unwrap().get(field_body_bytes), b"quoted text");
+	assert_eq!(hbp.next_word().unwrap().unwrap().as_slice_of(field_body_bytes), b"atom");
+	assert_eq!(hbp.next_word().unwrap().unwrap().as_slice_of(field_body_bytes), b"quoted text");
 }
 
 #[test]
 fn t_next_attribute() {
 	let line = b"header: start; first=attrib  ;  second = \"characteristic\"";
 	let h = header_from_line(line).unwrap();
-	let field_body_bytes = h.body.get(line);
+	let field_body_bytes = h.body.as_slice_of(line);
 	let mut hbp = HeaderBodyParser::new(field_body_bytes);
 
 	let word = hbp.next_word().unwrap().unwrap();
-	assert_eq!(word.get(field_body_bytes), b"start");
+	assert_eq!(word.as_slice_of(field_body_bytes), b"start");
 
 	let a = hbp.next_attribute().unwrap().unwrap();
-	assert_eq!(a.key.get(field_body_bytes), b"first");
-	assert_eq!(a.value.get(field_body_bytes), b"attrib");
+	assert_eq!(a.key.as_slice_of(field_body_bytes), b"first");
+	assert_eq!(a.value.as_slice_of(field_body_bytes), b"attrib");
 
 	let a = hbp.next_attribute().unwrap().unwrap();
-	assert_eq!(a.key.get(field_body_bytes), b"second");
-	assert_eq!(a.value.get(field_body_bytes), b"characteristic");
+	assert_eq!(a.key.as_slice_of(field_body_bytes), b"second");
+	assert_eq!(a.value.as_slice_of(field_body_bytes), b"characteristic");
 }

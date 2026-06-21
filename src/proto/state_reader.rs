@@ -1,4 +1,4 @@
-use crate::proto::rdx::Rdx;
+use index_slice::IndexSlice;
 
 #[derive(Default)]
 pub struct StateReader {
@@ -7,7 +7,7 @@ pub struct StateReader {
 }
 
 impl StateReader {
-	pub fn take_line(&mut self, buffer: &[u8]) -> Option<Rdx> {
+	pub fn take_line(&mut self, buffer: &[u8]) -> Option<IndexSlice> {
 		while self.head < buffer.len() {
 			if buffer[self.head] == b'\n' {
 				let to;
@@ -20,7 +20,7 @@ impl StateReader {
 
 				self.head += 1;
 				self.base = self.head;
-				return Some(Rdx::new(from, to));
+				return Some(IndexSlice::new(from, to));
 			}
 			self.head += 1;
 		}
@@ -28,7 +28,7 @@ impl StateReader {
         None
 	}
 
-    pub fn take_exact(&mut self, buffer: &[u8], length: usize) -> Option<Rdx> {
+    pub fn take_exact(&mut self, buffer: &[u8], length: usize) -> Option<IndexSlice> {
         if self.base + length < buffer.len() {
             self.head = buffer.len();
             None
@@ -36,7 +36,7 @@ impl StateReader {
             self.head += length;
             let tmp_base = self.base;
             self.base = self.head;
-            Some(Rdx::new(tmp_base, self.head))
+            Some(IndexSlice::new(tmp_base, self.head))
         }
     }
 
@@ -75,7 +75,7 @@ impl StateReader {
                 let tmp_base = self.base;
                 self.base = self.head;
                 return Some(BoundaryInfo {
-                    content: Rdx::new(tmp_base, tmp_base + s.len()),
+                    content: IndexSlice::new(tmp_base, tmp_base + s.len()),
                     is_last,
                 });
 
@@ -85,7 +85,7 @@ impl StateReader {
 }
 
 pub struct BoundaryInfo {
-	pub content: Rdx,
+	pub content: IndexSlice,
 	pub is_last: bool,
 }
 
@@ -94,9 +94,9 @@ pub struct BoundaryInfo {
 fn simple_take_line() {
 	let sample = b"line 1\r\nline 2\nline 3\r\nincomplete";
 	let mut r = StateReader::default();
-	assert_eq!(r.take_line(sample), Some(Rdx::new(0, 6)));
-	assert_eq!(r.take_line(sample), Some(Rdx::new(8, 14)));
-	assert_eq!(r.take_line(sample), Some(Rdx::new(15, 21)));
+	assert_eq!(r.take_line(sample), Some(IndexSlice::new(0, 6)));
+	assert_eq!(r.take_line(sample), Some(IndexSlice::new(8, 14)));
+	assert_eq!(r.take_line(sample), Some(IndexSlice::new(15, 21)));
 	assert_eq!(r.take_line(sample), None);
 }
 
@@ -108,7 +108,7 @@ fn take_attachment() {
 	match r.take_attachment(sample, b"abc") {
 		None => panic!(),
 		Some(bi) => {
-			assert_eq!(bi.content.get(sample), b"somedata");
+			assert_eq!(bi.content.as_slice_of(sample), b"somedata");
 			assert_eq!(bi.is_last, false);
 		}
 	};
@@ -117,7 +117,7 @@ fn take_attachment() {
 	match r.take_attachment(sample, b"abc") {
 		None => panic!(),
 		Some(bi) => {
-			assert_eq!(bi.content.get(sample), b"anotherdata");
+			assert_eq!(bi.content.as_slice_of(sample), b"anotherdata");
 			assert_eq!(bi.is_last, true);
 		}
 	};
