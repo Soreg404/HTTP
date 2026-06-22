@@ -90,7 +90,9 @@ impl Message {
 
         self.advance3();
 
-        start_head - self.buffer_reader.head
+        let bytes_processed = self.buffer_reader.head - start_head;
+        dtrace1!(format!("processed {bytes_processed} out of {} bytes", bytes.len()));
+        bytes_processed
     }
     fn advance3(&mut self) {
         loop {
@@ -107,6 +109,7 @@ impl Message {
                                     return;
                                 }
                                 Ok(v) => {
+                                    dtrace!("RequestFirstLine", format!(" v={v:?}"));
                                     self.i_request.method = Some(v.method);
                                     self.i_request.target = Some(v.target);
 
@@ -157,10 +160,15 @@ impl Message {
                 CollectStage::Body {
                     content_length, ..
                 } => {
+                    dtrace!("Body", format!("begin, length: {content_length:?}"));
                     match self.buffer_reader.take_exact(&self.buffer, content_length) {
-                        None => return,
+                        None => {
+                            dtrace!("Body", format!("return, read-len: {:?}",
+                                    self.buffer_reader.head - self.buffer_reader.base)); 
+                            return;
+                        },
                         Some(idx) => {
-                            // todo: avoid malloc
+                            dtrace!("Body", format!("done, length: {content_length:?}"));
                             self.i_message.body = idx;
                             self.state = CollectState::Finished(Ok(()));
                             return;
@@ -187,7 +195,7 @@ impl IncompleteMessage {
         line_bytes: &[u8]
     ) -> Result<(), CollectError> {
         macro_rules! dtrace1 { ($msg:expr) => {
-            dtrace!("MainHeaders->process_line()", $msg) }}
+            dtrace!("process_main_header_line()", $msg) }}
         dtrace1!("begin");
 
         let header_rdx = match header_from_line(line_bytes) {

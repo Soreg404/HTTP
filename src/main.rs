@@ -22,7 +22,7 @@ fn main() {
 
     ex_trailer!("sample multipart");
     let mut rc = http::RequestCollector::new();
-    rc.push_bytes(b"\
+    let buf = b"\
         GET / HTTP/1.1\r\n\
         content-length: 94\r\n\
         content-type: multipart/form-data; boundary=\"ABC\"\r\n\
@@ -33,6 +33,8 @@ fn main() {
         \r\n\
         hello world!
         --ABC--\r\n\
-        ");
+        ";
+    let n = rc.push_bytes(buf);
+    println!("bytes chopped: {:?}", str::from_utf8(&buf[n..]));
 }
 

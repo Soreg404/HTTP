@@ -29,7 +29,7 @@ impl StateReader {
 	}
 
     pub fn take_exact(&mut self, buffer: &[u8], length: usize) -> Option<IndexSlice> {
-        if self.base + length < buffer.len() {
+        if self.base + length > buffer.len() {
             self.head = buffer.len();
             None
         } else {

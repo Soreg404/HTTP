@@ -1,6 +1,7 @@
 use crate::proto::consts::*;
 use super::collect_error::CollectError;
 
+#[derive(Debug)]
 pub struct FirstLineRequest {
     pub method: Method,
     pub target: Vec<u8>,
