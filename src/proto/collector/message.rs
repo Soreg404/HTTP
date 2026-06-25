@@ -12,8 +12,9 @@ pub struct Message {
     buffer: Vec<u8>,
     buffer_reader: StateReader,
 
-    i_request: IncompleteRequest,
-    i_response: IncompleteResponse,
+    i_request: Option<FragmentRequest>,
+    i_response: Option<FragmentResponse>,
+
     i_message: IncompleteMessage
 }
 
@@ -39,16 +40,15 @@ enum CollectStage {
     }
 }
 
-#[derive(Default)]
-struct IncompleteRequest {
-    method: Option<Method>,
-    target: Option<Vec<u8>>,
+pub struct FragmentRequest {
+    method: Method,
+    target: Vec<u8>,
 }
-#[derive(Default)]
-struct IncompleteResponse {
-    code: Option<StatusCode>,
+pub struct FragmentResponse {
+    code: StatusCode,
     desc: IndexSlice
 }
+
 #[derive(Default)]
 struct IncompleteMessage {
     version: Version,
@@ -58,6 +58,15 @@ struct IncompleteMessage {
     multipart_boundary: Option<IndexSlice>,
     content_length: Option<usize>,
 
+    body: IndexSlice
+}
+
+pub struct MessageFinished {
+    buffer: Box<[u8]>,
+    version: Version,
+    headers: Vec<IndexSlice>,
+    multipart_boundary: Option<IndexSlice>,
+    content_length: usize,
     body: IndexSlice
 }
 
@@ -271,4 +280,54 @@ fn su8_to_dec(s: &[u8]) -> Result<usize, ()> {
 		v = v * 10 + (c - b'0') as usize;
 	}
 	Ok(v)
+}
+
+pub struct NextAttachment<'a> {
+    name: &'a [u8],
+    filename: Option<&'a [u8]>,
+    content: &'a [u8]
+}
+pub struct AttachmentsIter<'a> {
+    buffer: &'a [u8],
+    boundary: &'a [u8],
+    reader: StateReader,
+    finished: bool
+}
+impl Iterator for AttachmentsIter<'a> {
+    type Item = Result<NextAttachment<'a>, CollectError>;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.finished {
+            return None;
+        }
+
+        // headers
+        let mut name = None::<&[u8]>;
+        let mut filename = None::<&[u8]>;
+        loop {
+            match self.reader.take_line(self.buffer) {
+                None => return Some(Err(CollectError::TBD(
+                            "unepected EOF".to_string()))),
+                Some(line_idx) => {
+                    let line = line_idx.as_slice_of(self.buffer);
+                    if line.trim_ascii().is_empty() {
+                        if !line.is_empty() {
+                            return Some(Err(CollectError::TBD(
+                                        "invalid empty header line".to_string())));
+                        }
+                    }
+                }
+            }
+        }
+
+        let content = match self.reader.take_attachment(self.buffer, self.boundary) {
+            None => return Some(Err(CollectError::TBD(
+                            "unepected EOF".to_string()))),
+            Some(boundary_info) => {
+                if boundary_info.is_last {
+                    self.finished = true;
+                }
+                boundary_info.content;
+            }
+        };
+    }
 }

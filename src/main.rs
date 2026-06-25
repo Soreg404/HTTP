@@ -26,14 +26,17 @@ fn main() {
         GET / HTTP/1.1\r\n\
         content-length: 94\r\n\
         content-type: multipart/form-data; boundary=\"ABC\"\r\n\
-        \r\n\
+        \r\n";
+    let n = rc.push_bytes(buf);
+    let buf = b"\
         --ABC\r\n\
         content-disposition: name=\"field1\"\r\n\
         content-type: text/plain\r\n\
         \r\n\
-        hello world!
+        hello world!\r\n\
         --ABC--\r\n\
         ";
+    println!("buf len: {}", buf.len());
     let n = rc.push_bytes(buf);
     println!("bytes chopped: {:?}", str::from_utf8(&buf[n..]));
 }
