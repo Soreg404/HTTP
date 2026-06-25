@@ -304,24 +304,72 @@ impl Iterator for AttachmentsIter<'a> {
         let mut name = None::<&[u8]>;
         let mut filename = None::<&[u8]>;
         loop {
-            match self.reader.take_line(self.buffer) {
-                None => return Some(Err(CollectError::TBD(
-                            "unepected EOF".to_string()))),
+            let (line, line_idx) = match self.reader.take_line(self.buffer) {
+                None => {
+                    self.finished = true;
+                    return Some(Err(CollectError::TBD(
+                            "unepected EOF".to_string())));
+                }
                 Some(line_idx) => {
                     let line = line_idx.as_slice_of(self.buffer);
                     if line.trim_ascii().is_empty() {
                         if !line.is_empty() {
+                            self.finished = true;
                             return Some(Err(CollectError::TBD(
                                         "invalid empty header line".to_string())));
                         }
+                        break;
                     }
+                    (line, line_idx)
                 }
+            };
+            let header = match header_from_line(line) {
+                Ok(v) => v,
+                Err(()) => {
+                    self.finished = true;
+                    return Some(Err(CollectError::TBD(
+                                "invalid header line".to_string())));
+                }
+            };
+            let header_name_bytes = header.name.as_slice_of(line);
+            if header_name_bytes.eq_ignore_ascii_case(b"content-disposition") {
+                match parser::parse_header_content_disposition(line) {
+                    Err(e) => {
+                        self.finished = true;
+                        return Some(Err(e));
+                    }
+                    Ok(v) => {
+                        if v.name.is_some() {
+                            if name.is_some() {
+                                self.finished = true;
+                                return Some(Err(CollectError::TBD("duplicate name".to_string())));
+                            }
+                            name = Some(v.name.as_slice_of(line));
+                        }
+                        if v.filename.is_some() {
+                            if filename.is_some() {
+                                self.finished = true;
+                                return Some(Err(CollectError::TBD("duplicate filename".to_string())));
+                            }
+                            filename = Some(v.filename.as_slice_of(line));
+                        }
+                    }
+                };
             }
+
+        }
+        if name.is_none() {
+            self.finished = true;
+            return Some(Err(CollectError::TBD(
+                        "attachment missing name".to_string())));
         }
 
         let content = match self.reader.take_attachment(self.buffer, self.boundary) {
-            None => return Some(Err(CollectError::TBD(
-                            "unepected EOF".to_string()))),
+            None => {
+                self.finished = true;
+                return Some(Err(CollectError::TBD(
+                            "unepected EOF".to_string())));
+            }
             Some(boundary_info) => {
                 if boundary_info.is_last {
                     self.finished = true;
@@ -329,5 +377,11 @@ impl Iterator for AttachmentsIter<'a> {
                 boundary_info.content;
             }
         };
+
+        Some(Ok(NextAttachment {
+            name,
+            filename,
+            content
+        }))
     }
 }
