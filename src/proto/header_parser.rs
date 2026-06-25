@@ -1,9 +1,9 @@
 use index_slice::IndexSlice;
 
-pub struct HeaderParser {
-    target: &[u8]
-    name: 
-}
+//pub struct HeaderParser {
+    //target: &[u8]
+    //name: 
+//}
 
 
 pub struct HeaderRdx {

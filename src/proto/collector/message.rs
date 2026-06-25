@@ -119,8 +119,10 @@ impl Message {
                                 }
                                 Ok(v) => {
                                     dtrace!("RequestFirstLine", format!(" v={v:?}"));
-                                    self.i_request.method = Some(v.method);
-                                    self.i_request.target = Some(v.target);
+                                    self.i_request = Some(FragmentRequest {
+                                        method: v.method,
+                                        target: v.target
+                                    });
 
                                     self.i_message.version = v.version;
 
@@ -293,7 +295,7 @@ pub struct AttachmentsIter<'a> {
     reader: StateReader,
     finished: bool
 }
-impl Iterator for AttachmentsIter<'a> {
+impl<'a> Iterator for AttachmentsIter<'a> {
     type Item = Result<NextAttachment<'a>, CollectError>;
     fn next(&mut self) -> Option<Self::Item> {
         if self.finished {
@@ -344,14 +346,14 @@ impl Iterator for AttachmentsIter<'a> {
                                 self.finished = true;
                                 return Some(Err(CollectError::TBD("duplicate name".to_string())));
                             }
-                            name = Some(v.name.as_slice_of(line));
+                            name = Some(v.name.unwrap().as_slice_of(line));
                         }
                         if v.filename.is_some() {
                             if filename.is_some() {
                                 self.finished = true;
                                 return Some(Err(CollectError::TBD("duplicate filename".to_string())));
                             }
-                            filename = Some(v.filename.as_slice_of(line));
+                            filename = Some(v.filename.unwrap().as_slice_of(line));
                         }
                     }
                 };
@@ -374,12 +376,12 @@ impl Iterator for AttachmentsIter<'a> {
                 if boundary_info.is_last {
                     self.finished = true;
                 }
-                boundary_info.content;
+                boundary_info.content.as_slice_of(self.buffer)
             }
         };
 
         Some(Ok(NextAttachment {
-            name,
+            name: name.unwrap(),
             filename,
             content
         }))

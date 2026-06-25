@@ -1,6 +1,7 @@
 use crate::proto::consts::*;
 use super::collect_error::CollectError;
-use crate::header_parser::HeaderBodyParser;
+use crate::proto::header_parser::HeaderBodyParser;
+use index_slice::IndexSlice;
 
 #[derive(Debug)]
 pub struct FirstLineRequest {
@@ -41,10 +42,10 @@ pub fn first_line_request(line: &[u8]) -> Result<FirstLineRequest, CollectError>
 }
 
 pub struct ParsedContentDisposition {
-    name: Option<IndexSlice>,
-    filename: Option<IndexSlice>
+    pub name: Option<IndexSlice>,
+    pub filename: Option<IndexSlice>
 }
-fn parse_header_content_disposition(line: &[u8])
+pub fn parse_header_content_disposition(line: &[u8])
     -> Result<ParsedContentDisposition, CollectError> {
         let mut bp = HeaderBodyParser::new(line);
         if !bp.next_atom()
@@ -52,15 +53,17 @@ fn parse_header_content_disposition(line: &[u8])
                 .unwrap_or(false) {
                     return Err(CollectError::TBD(
                             "idk invalid content-disposition; \
-                        missing attachment atom".to_string());
+                        missing attachment atom".to_string()));
         }
 
-        let name = None::<IndexSlice>;
-        let filename = None::<IndexSlice>;
+        let mut name = None::<IndexSlice>;
+        let mut filename = None::<IndexSlice>;
 
         match bp.next_attribute() {
-            None | Some(Err(_)) => return Err(CollectError::TBD("missing name".to_string()));
-            Some(v) => {
+            None | Some(Err(_)) => {
+                return Err(CollectError::TBD("missing name".to_string()));
+            }
+            Some(Ok(v)) => {
                 let k = v.key.as_slice_of(line);
                 if k.eq_ignore_ascii_case(b"name") {
                     if name.is_some() {
@@ -78,8 +81,10 @@ fn parse_header_content_disposition(line: &[u8])
 
         match bp.next_attribute() {
             None => {}
-            Some(Err(_)) => return Err(CollectError::TBD("invalid content-disp".to_string()));
-            Some(v) => {
+            Some(Err(_)) => {
+                return Err(CollectError::TBD("invalid content-disp".to_string()));
+            }
+            Some(Ok(v)) => {
                 let k = v.key.as_slice_of(line);
                 if k.eq_ignore_ascii_case(b"name") {
                     if name.is_some() {
