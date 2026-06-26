@@ -12,8 +12,8 @@ pub struct Message {
     buffer: Vec<u8>,
     buffer_reader: StateReader,
 
-    i_request: Option<FragmentRequest>,
-    i_response: Option<FragmentResponse>,
+    f_request: Option<FragmentRequest>,
+    f_response: Option<FragmentResponse>,
 
     i_message: IncompleteMessage
 }
@@ -62,7 +62,9 @@ struct IncompleteMessage {
 }
 
 pub struct MessageFinished {
-    buffer: Box<[u8]>,
+    buffer: Vec<u8>,
+    f_request: Option<FragmentRequest>,
+    f_response: Option<FragmentResponse>,
     version: Version,
     headers: Vec<IndexSlice>,
     multipart_boundary: Option<IndexSlice>,
@@ -197,6 +199,8 @@ impl Message {
             CollectState::Processing => false,
             CollectState::Finished(_) => true
         }
+    }
+    pub fn to_finished(self) -> Result<MessageFinished, CollectError> {
     }
 }
 

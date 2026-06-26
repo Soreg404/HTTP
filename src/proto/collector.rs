@@ -23,8 +23,7 @@ impl RequestCollector {
     pub fn is_finished(&self) -> bool {
         self.msg.is_finished()
     }
-    //pub fn to_finished_request(self) -> Result<RequestFinished, CollectError> {
-        //self.message.to_finished()
-    //}
+    pub fn to_request(self) -> Result<RequestFinished, CollectError> {
+        self.msg.to_finished()
+    }
 }
-
