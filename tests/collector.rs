@@ -1,5 +1,5 @@
 #[test]
-fn collector_basic_api() {
+fn basic_api() {
     let mut rc = http::RequestCollector::new();
 
     let first_line = b"GET /target HTTP/1.1\r\n";
@@ -26,7 +26,7 @@ fn collector_basic_api() {
 }
 
 #[test]
-fn collector_to_finished() {
+fn to_finished() {
     let sample = b"\
     GET /target HTTP/1.1\r\n\
     content-length: 5\r\n\
@@ -42,3 +42,4 @@ fn collector_to_finished() {
     let req = rc.to_request();
     assert!(req.is_ok());
 }
+

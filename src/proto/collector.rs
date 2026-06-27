@@ -1,14 +1,18 @@
 pub mod collect_error;
-use collect_error::CollectError;
 
 mod parser;
 mod message;
+
+use collect_error::CollectError;
+use crate::proto::consts::Method;
 
 pub struct RequestCollector {
     msg: message::Message
 }
 pub struct RequestFinished {
-    msg: message::MessageFinished
+    method: Method,
+    target: Vec<u8>,
+    msg: message::MessageFinished,
 }
 
 impl RequestCollector {
@@ -24,6 +28,14 @@ impl RequestCollector {
         self.msg.is_finished()
     }
     pub fn to_request(self) -> Result<RequestFinished, CollectError> {
-        self.msg.to_finished()
+        let mut fm = self.msg.to_finished()?;
+        assert!(fm.f_request.is_some());
+        assert!(fm.f_response.is_none());
+        let f_req = fm.f_request.take().unwrap();
+        Ok(RequestFinished {
+            method: f_req.method,
+            target: f_req.target,
+            msg: fm
+        })
     }
 }

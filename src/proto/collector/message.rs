@@ -41,12 +41,12 @@ enum CollectStage {
 }
 
 pub struct FragmentRequest {
-    method: Method,
-    target: Vec<u8>,
+    pub method: Method,
+    pub target: Vec<u8>,
 }
 pub struct FragmentResponse {
-    code: StatusCode,
-    desc: IndexSlice
+    pub code: StatusCode,
+    pub desc: IndexSlice
 }
 
 #[derive(Default)]
@@ -63,8 +63,8 @@ struct IncompleteMessage {
 
 pub struct MessageFinished {
     buffer: Vec<u8>,
-    f_request: Option<FragmentRequest>,
-    f_response: Option<FragmentResponse>,
+    pub f_request: Option<FragmentRequest>,
+    pub f_response: Option<FragmentResponse>,
     version: Version,
     headers: Vec<IndexSlice>,
     multipart_boundary: Option<IndexSlice>,
@@ -121,7 +121,7 @@ impl Message {
                                 }
                                 Ok(v) => {
                                     dtrace!("RequestFirstLine", format!(" v={v:?}"));
-                                    self.i_request = Some(FragmentRequest {
+                                    self.f_request = Some(FragmentRequest {
                                         method: v.method,
                                         target: v.target
                                     });
@@ -201,6 +201,21 @@ impl Message {
         }
     }
     pub fn to_finished(self) -> Result<MessageFinished, CollectError> {
+        match self.state {
+            CollectState::Processing => panic!("Attempted to call to_finished on unfinished collector. First call is_finished."),
+            CollectState::Finished(Err(e)) => return Err(e),
+            CollectState::Finished(Ok(())) => {}
+        }
+        Ok(MessageFinished {
+            buffer: self.buffer,
+            f_request: self.f_request,
+            f_response: self.f_response,
+            version: self.i_message.version,
+            headers: self.i_message.headers,
+            multipart_boundary: self.i_message.multipart_boundary,
+            content_length: self.i_message.content_length.unwrap_or(0),
+            body: self.i_message.body
+        })
     }
 }
 
