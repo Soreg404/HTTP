@@ -1,0 +1,238 @@
+use super::*;
+
+impl Collector {
+    pub fn advance_inner(&mut self, bytes: &[u8]) -> Advance {
+        trace!("advance start; proc_bytes={}; current_bytes={:?}",
+            self.proc_bytes,
+            String::from_utf8_lossy(bytes),
+        );
+        match self.stage {
+            Stage::Finished(_) => panic!("already finished"),
+            _ => {}
+        }
+        let mut i = 0;
+        let mut dbg_last_i = 0;
+        let mut av_action = AvAction::Nop;
+        'advance_loop: loop {
+            trace!("advance loop;     i={i:05}; c={:?}; stage={:?}; \
+            adv_buf={:?}; consumed={:?}; rest={:?}{};",
+                bytes.get(i).map(|v| *v as char),
+                self.stage,
+                String::from_utf8_lossy(&self.advance_buffer[..self.advance_buffer_head]),
+                String::from_utf8_lossy(&bytes[dbg_last_i..i]),
+                String::from_utf8_lossy(&bytes[i..std::cmp::min(bytes.len(), i + 20)]),
+                if i + 20 < bytes.len() { "..." } else { "" }
+            );
+            dbg_last_i = i;
+            if i == bytes.len() {
+                break;
+            }
+            match &mut self.stage {
+                Stage::Finished(_) => unreachable!(),
+                Stage::FirstLine => {
+                    while i < bytes.len() {
+                        if bytes[i] == b'\n' {
+                            let idx = self.proc_bytes + i;
+                            self.first_line_lf_idx = idx;
+                            self.stage = Stage::Headers(StageHeaders::HeaderName);
+                            av_action = AvAction::FirstLineReady(0..idx + 1);
+                            i += 1;
+                            break 'advance_loop;
+                        }
+                        i += 1;
+                    }
+                }
+                Stage::Headers(StageHeaders::HeaderName) => {
+                    while i < bytes.len() {
+                        let name = &self.advance_buffer[0..self.advance_buffer_head];
+                        if bytes[i] == b':' {
+                            if name.eq_ignore_ascii_case(b"content-length") {
+                                self.stage = Stage::Headers(StageHeaders::ContentLengthHeaderValue);
+                            } else if name.eq_ignore_ascii_case(b"transfer-encoding") {
+                                self.stage = Stage::Headers(StageHeaders::TransferEncodingHeaderValue);
+                            } else {
+                                self.stage = Stage::Headers(StageHeaders::HeaderValue);
+                            }
+                            self.advance_buffer_head = 0;
+                            i += 1;
+                            continue 'advance_loop;
+                        }
+                        else if bytes[i] == b'\n' {
+                            if !name.trim_ascii().is_empty() {
+                                self.stage = Stage::Finished(Err(()));
+                            } else {
+                                let idx = self.proc_bytes + i;
+                                self.last_header_lf_idx = idx;
+                                match self.content_length {
+                                    Some(v) => self.stage = Stage::BodyNormal(v),
+                                    None => {
+                                        // if not body chunked
+                                        self.stage = Stage::Finished(Ok(()));
+                                    }
+                                }
+                                av_action = AvAction::HeadersReady(
+                                    self.first_line_lf_idx + 1 .. idx + 1);
+                            }
+                            i += 1;
+                            break 'advance_loop;
+                        }
+                        if self.advance_buffer_head < self.advance_buffer.len() {
+                            self.advance_buffer[self.advance_buffer_head] = bytes[i];
+                            self.advance_buffer_head += 1;
+                        }
+                        i += 1;
+                    }
+                }
+                Stage::Headers(StageHeaders::HeaderValue) => {
+                    while i < bytes.len() {
+                        if bytes[i] == b'\n' {
+                            self.stage = Stage::Headers(StageHeaders::HeaderName);
+                            i += 1;
+                            break;
+                        }
+                        i += 1;
+                    }
+                }
+                Stage::Headers(StageHeaders::ContentLengthHeaderValue) => {
+                    if self.content_length.is_some() {
+                        self.stage = Stage::Finished(Err(()));
+                        break;
+                    }
+                    while i < bytes.len() && bytes[i] != b'\n' {
+                        if self.advance_buffer_head < self.advance_buffer.len() {
+                            self.advance_buffer[self.advance_buffer_head] = bytes[i];
+                            self.advance_buffer_head += 1;
+                        } else {
+                            self.stage = Stage::Finished(Err(()));
+                            break;
+                        }
+                        i += 1;
+                    }
+                    if i == bytes.len() {
+                        break 'advance_loop;
+                    }
+                    i += 1;
+                    let value_str = self.advance_buffer[..self.advance_buffer_head].trim_ascii();
+                    let cl = usize_from_u8_slice(value_str);
+                    match cl {
+                        Some(v) => {
+                            trace!("content-length header value: {v}");
+                            self.content_length = Some(v);
+                            self.advance_buffer_head = 0;
+                            self.stage = Stage::Headers(StageHeaders::HeaderName);
+                        }
+                        None => {
+                            self.stage = Stage::Finished(Err(()));
+                        }
+                    }
+                }
+                Stage::Headers(StageHeaders::TransferEncodingHeaderValue) => {
+                    unimplemented!()
+                }
+                Stage::BodyNormal(l) => {
+                    let l = *l;
+                    let body_start = self.last_header_lf_idx + 1;
+                    let current_body_len = self.proc_bytes - body_start;
+                    if current_body_len + bytes.len() >= l {
+                        i = l - current_body_len;
+                        let idx = self.proc_bytes + i;
+                        self.stage = Stage::Finished(Ok(()));
+                        av_action = AvAction::BodyReady(body_start..idx);
+                    } else {
+                        i = bytes.len();
+                    }
+                    break 'advance_loop;
+                }
+                Stage::BodyChunkLength => {
+                    while i < bytes.len() && bytes[i] != b'\n' {
+                        if self.advance_buffer_head < self.advance_buffer.len() {
+                            self.advance_buffer[self.advance_buffer_head] = bytes[i];
+                            self.advance_buffer_head += 1;
+                        } else {
+                            self.stage = Stage::Finished(Err(()));
+                            break;
+                        }
+                        i += 1;
+                    }
+                    if i == bytes.len() {
+                        break 'advance_loop;
+                    }
+                    let val_str = self.advance_buffer[0..self.advance_buffer_head]
+                        .trim_ascii();
+                    match usize_from_u8_slice_hex(val_str) {
+                        Some(l) => {
+                            if l == 0 {
+                                self.stage = Stage::Finished(Ok(()));
+                            } else {
+                                self.advance_buffer_head = 0;
+                                i += 1;
+                                self.stage = Stage::BodyChunk(l);
+                            }
+                        }
+                        None => {
+                            self.stage = Stage::Finished(Err(()));
+                        }
+                    }
+                }
+                Stage::BodyChunk(_l) => {
+                    todo!()
+                }
+            }
+        }
+        trace!("advance loop end; i={i:05}; c={:?}; stage={:?};\n    \
+            adv_buf={:?}; bytes_consumed={:?}; bytes_rest={:?}; av_action={:?}",
+            bytes.get(i).map(|v| *v as char),
+            self.stage,
+            String::from_utf8_lossy(&self.advance_buffer[..self.advance_buffer_head]),
+            String::from_utf8_lossy(&bytes[..i]),
+            String::from_utf8_lossy(&bytes[i..]),
+            av_action,
+        );
+        self.proc_bytes += i;
+        Advance {
+            current: i,
+            total: self.proc_bytes,
+            av_action
+        }
+    }
+}
+
+fn usize_from_u8_slice(s: &[u8]) -> Option<usize> {
+    let mut base = 0;
+    let mut i = 0;
+    while i < s.len() {
+        let n = digit(s[i])? as usize;
+        base *= 10;
+        base += n;
+        i += 1;
+    }
+    Some(base)
+}
+
+fn usize_from_u8_slice_hex(s: &[u8]) -> Option<usize> {
+    let mut base = 0;
+    let mut i = 0;
+    while i < s.len() {
+        let n = hexit(s[i])? as usize;
+        base *= 10;
+        base += n;
+        i += 1;
+    }
+    Some(base)
+}
+
+fn digit(c: u8) -> Option<u8> {
+    Some(match c {
+        b'0'..=b'9' => c - b'0',
+        _ => return None
+    })
+}
+
+fn hexit(c: u8) -> Option<u8> {
+    Some(c - match c {
+        b'0'..=b'9' => b'0',
+        b'a'..=b'f' => b'a',
+        b'A'..=b'F' => b'A',
+        _ => return None
+    })
+}
