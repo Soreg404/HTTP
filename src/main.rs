@@ -1,10 +1,13 @@
 fn main() {
     let sample = b"\
         GET /target HTTP/1.1\r\n\
-        header1 haha\r\n\
-        content-length: 20\r\n\
+        header1: haha\r\n\
+        transfer-encoding: chunked\r\n\
         \r\n\
-        content content content content content content content";
+        7\r\ncontent\r\n\
+        f\r\ncontent content\r\n\
+        1f\r\ncontent content content content\r\n\
+        0\r\n";
 
     let mut rc = http::Collector::new();
 
@@ -32,7 +35,10 @@ fn main() {
                     println!("[main] body ready: {:?}",
                         String::from_utf8_lossy(&sample[r]));
                 }
-                _ => panic!()
+                http::AvAction::BodyChunkReady(r) => {
+                    println!("[main] chunk ready: {:?}",
+                        String::from_utf8_lossy(&sample[r]));
+                }
             }
             print!("\x1b[0m");
 

@@ -10,10 +10,10 @@ macro_rules! trace {
 }
 
 pub mod defs;
+pub mod first_line;
+pub mod headers;
+
 mod cadv;
-#[expect(dead_code)]
-mod first_line;
-mod headers;
 
 pub struct Collector {
     proc_bytes: usize,
@@ -25,6 +25,9 @@ pub struct Collector {
     advance_buffer_head: usize,
 
     content_length: Option<usize>,
+
+    chunk_start_idx: usize,
+    transfer_encoding: Option<bool>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -32,9 +35,9 @@ enum Stage {
     FirstLine,
     Headers(StageHeaders),
     BodyNormal(usize),
-    #[expect(dead_code)]
     BodyChunkLength,
     BodyChunk(usize),
+    BodyChunkSkipCRLF,
     Finished(Result<(), ()>)
 }
 
@@ -52,7 +55,7 @@ pub enum AvAction {
     FirstLineReady(Range<usize>),
     HeadersReady(Range<usize>),
     BodyReady(Range<usize>),
-    Finished(Result<(), ()>)
+    BodyChunkReady(Range<usize>),
 }
 
 #[derive(Debug)]
@@ -74,6 +77,9 @@ impl Collector {
             advance_buffer_head: 0,
 
             content_length: None,
+
+            chunk_start_idx: 0,
+            transfer_encoding: None,
         }
     }
     pub fn advance(&mut self, buffer: &[u8]) -> Advance {
