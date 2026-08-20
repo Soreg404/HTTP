@@ -9,50 +9,60 @@ fn main() {
         1f\r\ncontent content content content\r\n\
         0\r\n";
 
-    let mut rc = http::Collector::new();
+    for i in 1..sample.len() {
+        println!("\x1b[91m[main] chunk len: {i}\x1b[0m");
 
-    'collect: for chunk in sample.chunks(11) {
-        let mut chunk = chunk;
-        println!("[main] new chunk; {:?}", String::from_utf8_lossy(chunk));
-        while !chunk.is_empty() {
-            println!("[main] advance; chunk_window={:?}", String::from_utf8_lossy(chunk));
-            let adv = rc.advance(chunk);
+        let mut rc = http::Collector::new();
 
-            println!("[main] got advance: {adv:?}");
+        'collect: for chunk in sample.chunks(i) {
+            let mut chunk = chunk;
+            //println!("[main] new chunk; {:?}", String::from_utf8_lossy(chunk));
+            while !chunk.is_empty() {
+                //println!("[main] advance; chunk_window={:?}", String::from_utf8_lossy(chunk));
+                let adv = rc.advance(chunk);
 
-            print!("\x1b[95m");
-            match adv.av_action {
-                http::AvAction::Nop => {}
-                http::AvAction::FirstLineReady(r) => {
-                    println!("[main] first line ready: {:?}",
-                        String::from_utf8_lossy(&sample[r]));
+                //println!("[main] got advance: {adv:?}");
+
+                match adv.av_action {
+                    http::AvAction::Nop => {}
+                    other => {
+                        print!("\x1b[95m");
+                        match other {
+                            http::AvAction::FirstLineReady(r) => {
+                                println!("[main] first line ready: {:?}",
+                                    String::from_utf8_lossy(&sample[r]));
+                            }
+                            http::AvAction::HeadersReady(r) => {
+                                println!("[main] headers ready: {:?}",
+                                    String::from_utf8_lossy(&sample[r]));
+                            }
+                            http::AvAction::BodyReady(r) => {
+                                println!("[main] body ready: {:?}",
+                                    String::from_utf8_lossy(&sample[r]));
+                            }
+                            http::AvAction::BodyChunkReady(r) => {
+                                println!("[main] chunk ready: {:?}",
+                                    String::from_utf8_lossy(&sample[r]));
+                            }
+                            _ => unreachable!()
+                        }
+                        println!("\x1b[0m");
+                    }
                 }
-                http::AvAction::HeadersReady(r) => {
-                    println!("[main] headers ready: {:?}",
-                        String::from_utf8_lossy(&sample[r]));
+
+                if rc.finish_status().is_some() {
+                    println!("[main] finished: {:?}", rc.finish_status());
+                    break 'collect;
                 }
-                http::AvAction::BodyReady(r) => {
-                    println!("[main] body ready: {:?}",
-                        String::from_utf8_lossy(&sample[r]));
-                }
-                http::AvAction::BodyChunkReady(r) => {
-                    println!("[main] chunk ready: {:?}",
-                        String::from_utf8_lossy(&sample[r]));
-                }
+
+                chunk = &chunk[adv.current..];
+
+                //println!("");
             }
-            print!("\x1b[0m");
-
-            if rc.finish_status().is_some() {
-                println!("[main] finished: {:?}", rc.finish_status());
-                break 'collect;
-            }
-
-            chunk = &chunk[adv.current..];
-
-            println!("");
+            //println!("");
         }
-        println!("");
+        if rc.finish_status().is_none() {
+            panic!();
+        }
     }
-
-
 }

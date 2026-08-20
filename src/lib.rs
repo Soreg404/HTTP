@@ -2,6 +2,7 @@ use std::ops::Range;
 
 macro_rules! trace {
     ($($arg:tt)*) => {
+        #[cfg(any(test, trace))]
         println!("\x1b[96mtrace!\x1b[0m [{}:{:04}] {}",
             file!(),
             line!(),

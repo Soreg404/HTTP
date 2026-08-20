@@ -204,7 +204,6 @@ impl Collector {
                                 self.advance_buffer_head = 0;
                                 i += 1;
                                 self.chunk_start_idx = self.proc_bytes + i;
-                                dbg!(self.chunk_start_idx);
                                 self.stage = Stage::BodyChunk(l);
                             }
                         }
@@ -215,10 +214,8 @@ impl Collector {
                 }
                 Stage::BodyChunk(l) => {
                     let l = *l;
-                    let bytes = &bytes[i..];
                     let current_chunk_len = (self.proc_bytes + i) - self.chunk_start_idx;
-                    dbg!(current_chunk_len);
-                    if current_chunk_len + bytes.len() >= l {
+                    if current_chunk_len + (bytes.len() - i) >= l {
                         i += l - current_chunk_len;
                         let idx = self.proc_bytes + i;
                         self.advance_buffer_head = 0;
