@@ -2,13 +2,13 @@ use crate::defs::*;
 use crate::helpers::*;
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct FirstLine<'a> {
+pub struct FirstLineRequest<'a> {
     pub method: MethodRaw<'a>,
     pub target_str: &'a [u8],
     pub version: (u8, u8),
 }
 
-impl<'a> FirstLine<'a> {
+impl<'a> FirstLineRequest<'a> {
     pub fn from_bytes(bytes: &'a [u8]) -> Result<Self, ()> {
         debug_trace!("first line start; bytes({})={:?}", bytes.len(), String::from_utf8_lossy(bytes));
         let bytes = split_crlf(bytes).0;
@@ -66,10 +66,10 @@ impl<'a> FirstLine<'a> {
 }
 
 #[test]
-fn test_first_line() {
+fn test_first_line_request() {
     assert_eq!(
-        FirstLine::from_bytes(b"GET / HTTP/1.1\r\n"),
-        Ok(FirstLine {
+        FirstLineRequest::from_bytes(b"GET / HTTP/1.1\r\n"),
+        Ok(FirstLineRequest {
             method: MethodRaw::Known(Method::Get),
             target_str: b"/",
             version: (1, 1)
