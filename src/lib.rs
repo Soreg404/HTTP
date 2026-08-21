@@ -86,6 +86,9 @@ impl Collector {
             _ => None
         }
     }
+    pub fn get_proc_bytes(&self) -> usize {
+        self.proc_bytes
+    }
     pub fn get_first_line_range(&self) -> Option<Range<usize>> {
         match self.stage {
             Stage::FirstLine => None,

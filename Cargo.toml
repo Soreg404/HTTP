@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+rustls = "0.23.43"
+webpki-roots = "1.0.9"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(trace)'] }
