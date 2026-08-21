@@ -1,20 +1,13 @@
-use std::ops::Range;
-
-macro_rules! trace {
-    ($($arg:tt)*) => {
-        #[cfg(any(test, trace))]
-        println!("\x1b[96mtrace!\x1b[0m [{}:{:04}] {}",
-            file!(),
-            line!(),
-            format_args!($($arg)*));
-    };
-}
+#[macro_use]
+mod helpers;
 
 pub mod defs;
 pub mod first_line;
 pub mod headers;
 
 mod cadv;
+
+use std::ops::Range;
 
 pub struct Collector {
     proc_bytes: usize,
@@ -107,21 +100,3 @@ impl Collector {
     }
 }
 
-fn split_crlf(s: &[u8]) -> (&[u8], &[u8]) {
-    let mut sp = s.len();
-    match s.last() {
-        Some(b'\n') => { sp -= 1; }
-        _ => return (s, &[])
-    }
-    match &s[..sp].last() {
-        Some(b'\r') => { sp -= 1; }
-        _ => {}
-    }
-    s.split_at(sp)
-}
-#[test]
-fn test_split_crlf() {
-    assert_eq!(split_crlf(b"hello\r\n"), (b"hello".as_slice(), b"\r\n".as_slice()));
-    assert_eq!(split_crlf(b"hello\n\r"), (b"hello\n\r".as_slice(), b"".as_slice()));
-    assert_eq!(split_crlf(b"hello\n"),   (b"hello".as_slice(), b"\n".as_slice()));
-}

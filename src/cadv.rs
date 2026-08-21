@@ -1,4 +1,5 @@
 use super::*;
+use crate::helpers::*;
 
 impl Collector {
     pub fn advance_inner(&mut self, bytes: &[u8]) -> Advance {
@@ -11,7 +12,7 @@ impl Collector {
             _ => {}
         }
         let mut i = 0;
-        let mut dbg_last_i = 0;
+        let mut _dbg_last_i = 0;
         let mut av_action = AvAction::Nop;
         'advance_loop: loop {
             trace!("advance loop;     i={i:05}; c={:?}; stage={:?}; \
@@ -19,11 +20,11 @@ impl Collector {
                 bytes.get(i).map(|v| *v as char),
                 self.stage,
                 String::from_utf8_lossy(&self.advance_buffer[..self.advance_buffer_head]),
-                String::from_utf8_lossy(&bytes[dbg_last_i..i]),
+                String::from_utf8_lossy(&bytes[_dbg_last_i..i]),
                 String::from_utf8_lossy(&bytes[i..std::cmp::min(bytes.len(), i + 20)]),
                 if i + 20 < bytes.len() { "..." } else { "" }
             );
-            dbg_last_i = i;
+            _dbg_last_i = i;
             if i == bytes.len() {
                 break;
             }
@@ -264,44 +265,4 @@ impl Collector {
             av_action
         }
     }
-}
-
-fn usize_from_u8_slice(s: &[u8]) -> Option<usize> {
-    let mut base = 0;
-    let mut i = 0;
-    while i < s.len() {
-        let n = digit(s[i])? as usize;
-        base *= 10;
-        base += n;
-        i += 1;
-    }
-    Some(base)
-}
-
-fn usize_from_u8_slice_hex(s: &[u8]) -> Option<usize> {
-    let mut base = 0;
-    let mut i = 0;
-    while i < s.len() {
-        let n = hexit(s[i])? as usize;
-        base *= 16;
-        base += n;
-        i += 1;
-    }
-    Some(base)
-}
-
-fn digit(c: u8) -> Option<u8> {
-    Some(match c {
-        b'0'..=b'9' => c - b'0',
-        _ => return None
-    })
-}
-
-fn hexit(c: u8) -> Option<u8> {
-    Some(match c {
-        b'0'..=b'9' => c - b'0',
-        b'a'..=b'f' => c - b'a' + 10,
-        b'A'..=b'F' => c - b'A' + 10,
-        _ => return None
-    })
 }
