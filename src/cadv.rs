@@ -2,13 +2,13 @@ use super::*;
 use crate::helpers::*;
 
 impl Collector {
-    pub fn advance_inner(&mut self, bytes: &[u8]) -> Advance {
+    pub fn advance_inner<'a>(&mut self, bytes: &'a [u8]) -> Advance<'a> {
         trace!("advance start; proc_bytes={}; current_bytes={:?}",
             self.proc_bytes,
             String::from_utf8_lossy(bytes),
         );
         match self.stage {
-            Stage::Finished(_) => panic!("already finished"),
+            Stage::Finished(_) => todo!("already finished, return result or smth"),
             _ => {}
         }
         let mut i = 0;
@@ -260,8 +260,8 @@ impl Collector {
         );
         self.proc_bytes += i;
         Advance {
-            current: i,
-            total: self.proc_bytes,
+            processed: &bytes[..i],
+            rest: &bytes[i..],
             av_action
         }
     }
