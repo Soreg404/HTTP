@@ -1,8 +1,10 @@
+#[derive(Debug, Eq, PartialEq)]
 pub enum MethodRaw<'a> {
     Known(Method),
     Unknown(&'a [u8])
 }
 
+#[derive(Debug, Eq, PartialEq)]
 pub enum Method {
     Get,
     Post
