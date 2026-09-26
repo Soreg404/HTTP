@@ -9,7 +9,7 @@ impl Collector {
         String::from_utf8_lossy(&s).to_string()
     }
     pub fn debug_write(&self, buffer: &[u8], sink: &mut impl Write) -> Result<(), std::io::Error> {
-        writeln!(sink, "Collector:\n")?;
+        writeln!(sink, "Collector:")?;
         write!(sink, "stage: ")?;
         match self.stage {
             Stage::FirstLine => writeln!(sink, "collecting first line")?,

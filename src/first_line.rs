@@ -4,7 +4,7 @@ use crate::helpers::*;
 #[derive(Debug, Eq, PartialEq)]
 pub struct FirstLineRequest<'a> {
     pub method: MethodRaw<'a>,
-    pub target_str: &'a [u8],
+    pub target: &'a [u8],
     pub version: (u8, u8),
 }
 
@@ -33,14 +33,14 @@ impl<'a> FirstLineRequest<'a> {
             }
             i += 1;
         }
-        let target_str = &bytes[target_start..i];
+        let target = &bytes[target_start..i];
         if i == bytes.len() {
             return Err(());
         }
         i += 1;
 
-        debug_trace!("target_str={:?}; rest={:?}",
-            String::from_utf8_lossy(target_str),
+        debug_trace!("target={:?}; rest={:?}",
+            String::from_utf8_lossy(target),
             String::from_utf8_lossy(&bytes[i..]),
         );
 
@@ -59,7 +59,7 @@ impl<'a> FirstLineRequest<'a> {
 
         Ok(Self {
             method,
-            target_str,
+            target,
             version
         })
     }
@@ -71,7 +71,7 @@ fn test_first_line_request() {
         FirstLineRequest::from_bytes(b"GET / HTTP/1.1\r\n"),
         Ok(FirstLineRequest {
             method: MethodRaw::Known(Method::Get),
-            target_str: b"/",
+            target: b"/",
             version: (1, 1)
         })
     );

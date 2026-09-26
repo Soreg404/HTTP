@@ -59,6 +59,7 @@ pub enum AvAction {
     BodyChunkReady(Range<usize>),
 }
 
+// todo: proper impl Debug
 #[derive(Debug)]
 pub struct Advance<'a> {
     pub processed: &'a [u8],
@@ -104,6 +105,13 @@ impl Collector {
     }
     pub fn is_finished(&self) -> bool {
         self.finish_status().is_some()
+    }
+    pub fn is_chunked(&self) -> Option<bool> {
+        if matches!(self.stage, Stage::FirstLine | Stage::Headers(_)) {
+            None
+        } else {
+            Some(matches!(self.transfer_encoding, Some(true)))
+        }
     }
     pub fn get_proc_bytes(&self) -> usize {
         self.proc_bytes
